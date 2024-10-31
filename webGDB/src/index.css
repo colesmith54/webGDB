@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body,
+html {
+  height: 100%;
+  background-color: #1e1e1e;
+}
+
+body {
+  overflow: hidden;
+}
+
+.breakpoint-line {
+  background-color: rgba(255, 99, 71, 0.2) !important;
+}
+
+.breakpoint-line .mtk1,
+.breakpoint-line .mtk2,
+.breakpoint-line .mtk3,
+.breakpoint-line .mtk4,
+.breakpoint-line .mtk5,
+.breakpoint-line .mtk6,
+.breakpoint-line .mtk7,
+.breakpoint-line .mtk8,
+.breakpoint-line .mtk9,
+.breakpoint-line .mtk10,
+.breakpoint-line .mtk11,
+.breakpoint-line .mtk12,
+.breakpoint-line .mtk13,
+.breakpoint-line .mtk14,
+.breakpoint-line .mtk15,
+.breakpoint-line .mtk16,
+.breakpoint-line .mtk17,
+.breakpoint-line .mtk18,
+.breakpoint-line .mtk19,
+.breakpoint-line .mtk20 {
+  background-color: transparent !important;
+}
+
+.breakpoint-glyph {
+  width: 14px !important;
+  height: 14px !important;
+  background-color: #ff6347 !important;
+  border-radius: 50%;
+  margin-left: 4px;
+  margin-top: 3px;
+  display: inline-block;
+}
