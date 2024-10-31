@@ -1,5 +1,4 @@
 # Ignore the code directory where user-submitted code is stored
-
 /src/code/
 
 # Logs

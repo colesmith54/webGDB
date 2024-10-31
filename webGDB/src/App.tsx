@@ -11,12 +11,10 @@ const App: React.FC = () => {
   const [terminalOutput, setTerminalOutput] = useState<string>("");
 
   const handleProgramOutput = (data: { output: string }) => {
-    console.log("Program output:", data.output);
     setTerminalOutput(data.output);
   };
 
   const handleProgramError = (data: { error: string }) => {
-    console.error("Program error:", data.error);
     setTerminalOutput(data.error);
   };
 
@@ -28,11 +26,8 @@ const App: React.FC = () => {
   const handleCompile = () => {
     if (codeEditorRef.current) {
       const code = codeEditorRef.current.getCode();
-      console.log("Compiling code:", code);
-
       socket.emit("codeSubmission", { code });
-
-      setTerminalOutput("// Compiling and executing your code...");
+      setTerminalOutput("// Compiling and executing...");
     }
   };
 

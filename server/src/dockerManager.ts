@@ -31,9 +31,7 @@ export async function createDockerContainer(
   });
 
   await container.start();
-
   console.log(`Docker container ${containerName} created and started.`);
-
   return container;
 }
 
