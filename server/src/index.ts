@@ -4,6 +4,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { handleSocketConnection } from "./socketHandlers";
+import "regenerator-runtime/runtime";
 
 const app = express();
 const PORT = process.env.PORT || 3001;

@@ -1,0 +1,13 @@
+diff --git a/node_modules/gdb-ts/lib/index.js b/node_modules/gdb-ts/lib/index.js
+index 19de22e..6b70aed 100644
+--- a/node_modules/gdb-ts/lib/index.js
++++ b/node_modules/gdb-ts/lib/index.js
+@@ -1894,7 +1894,7 @@ module.exports =
+ 	        cmd = '-interpreter-exec console "gdbjs-' + cmd + '"';
+ 	      }
+ 	
+-	      this._process.stdin.write(cmd + '\n', { binary: true });
++	      this._process.stdin.write(cmd + '\n', 'utf8');
+ 	
+ 	      return new Promise(function (resolve, reject) {
+ 	        _this36._queue.write({ cmd: cmd, interpreter: interpreter, resolve: resolve, reject: reject });

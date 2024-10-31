@@ -2,6 +2,7 @@
 
 export interface ExecutionResult {
   success: boolean;
-  output?: string;
+  stdout?: string;
+  stderr?: string;
   error?: string;
 }

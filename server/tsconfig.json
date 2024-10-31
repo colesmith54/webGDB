@@ -6,7 +6,8 @@
     "outDir": "./dist",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
+    "noImplicitAny": false,
+    "allowJs": true,
     "skipLibCheck": true
   }
 }
