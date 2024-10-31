@@ -12,7 +12,7 @@ import * as monacoEditor from "monaco-editor";
 
 const CodeEditor = forwardRef((props, ref) => {
   const [code, setCode] = useState<string>(
-    `#include <iostream>\n\nint main() {\n    // Write your code here\n    return 0;\n}`
+    `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "testing!" << '\\n' << "hey!"; \n    cout << endl;\n    return 0;\n}`
   );
   const [breakpoints, setBreakpoints] = useState<number[]>([]);
   const [decorationIds, setDecorationIds] = useState<string[]>([]);
