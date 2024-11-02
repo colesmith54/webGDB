@@ -85,7 +85,6 @@ const App: React.FC = () => {
       setTerminalOutput("");
       setTerminalError("");
       setIsDebugging(true);
-      setDebugControlsVisible(true);
     }
   };
 

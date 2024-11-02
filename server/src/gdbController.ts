@@ -25,6 +25,7 @@ export class GDBController extends EventEmitter {
   private tokenCounter: number;
   private pendingResponses: Map<number, (response: GDBResponse) => void>;
   private breakpoints: Map<number, string>;
+  private isEnded: boolean = false;
 
   constructor(options: GDBControllerOptions) {
     super();
@@ -38,6 +39,21 @@ export class GDBController extends EventEmitter {
 
     this.stdout.on("data", this.handleStdout.bind(this));
     this.stderr.on("data", this.handleStderr.bind(this));
+
+    // Add error listener to stdin
+    this.stdin.on("error", (err) => {
+      console.error("stdin stream encountered an error:", err);
+      this.emit("error", err);
+    });
+
+    // Optional: Handle finish and close events
+    this.stdin.on("finish", () => {
+      console.log("stdin stream has finished writing.");
+    });
+
+    this.stdin.on("close", () => {
+      console.log("stdin stream has been closed.");
+    });
   }
 
   private buffer: string = "";
@@ -136,13 +152,17 @@ export class GDBController extends EventEmitter {
   }
 
   public sendCommand(command: string): Promise<GDBResponse> {
+    if (this.isEnded) {
+      return Promise.reject(
+        new Error("Cannot send command, GDBController has been quit.")
+      );
+    }
+
     const token = this.tokenCounter++;
     return new Promise((resolve, reject) => {
       if (token > Number.MAX_SAFE_INTEGER - 1) {
         this.tokenCounter = 1;
       }
-
-      this.pendingResponses.set(token, resolve);
 
       const timeout = setTimeout(() => {
         this.pendingResponses.delete(token);
@@ -290,9 +310,28 @@ export class GDBController extends EventEmitter {
   }
 
   public async quit() {
+    if (this.isEnded) {
+      console.warn("GDBController has already been quit.");
+      return;
+    }
+    this.isEnded = true;
+
     try {
-      this.stdin.write(`${this.tokenCounter++}-gdb-exit\n`);
-      this.stdin.end();
+      this.stdin.write(`${this.tokenCounter++}-gdb-exit\n`, (err) => {
+        if (err) {
+          console.error("Error writing exit command to stdin:", err);
+        }
+        this.stdin.end();
+      });
+
+      for (const [token, resolve] of this.pendingResponses) {
+        resolve({
+          token,
+          type: "error",
+          message: "GDBController has been quit.",
+          payload: null,
+        });
+      }
       this.pendingResponses.clear();
     } catch (error) {
       console.error("Failed to exit GDB:", error);

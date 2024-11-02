@@ -1,6 +1,6 @@
-import { Container } from "dockerode";
+import { Container, Exec } from "dockerode";
 import { ExecutionResult } from "./types";
-import { Readable } from "stream";
+import { Writable } from "stream";
 
 export async function compileAndRunCodeInContainer(
   container: Container,
@@ -17,11 +17,10 @@ export async function compileAndRunCodeInContainer(
       Tty: false,
     });
 
-    const compileStream = await compileExec.start({});
-    const compileOutput = await cleanStreamToString(compileStream);
+    const compileOutput = await execToString(container, compileExec);
 
-    if (compileOutput.trim()) {
-      return { success: false, error: compileOutput };
+    if (compileOutput.stderr.trim()) {
+      return { success: false, error: compileOutput.stderr };
     }
 
     const runExec = await container.exec({
@@ -31,42 +30,70 @@ export async function compileAndRunCodeInContainer(
       Tty: false,
     });
 
-    const runStream = await runExec.start({});
-    const runOutput = await cleanStreamToString(runStream);
+    const runOutput = await execToString(container, runExec);
 
-    return { success: true, output: runOutput };
-  } catch (err) {
-    throw err;
+    if (runOutput.stderr.trim()) {
+      return { success: false, error: runOutput.stderr };
+    }
+
+    return { success: true, output: runOutput.stdout };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 
-function cleanStreamToString(stream: Readable): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+async function execToString(
+  container: Container,
+  exec: Exec
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    exec.start({ hijack: true, stdin: false }, (err, stream) => {
+      if (err) return reject(err);
 
-    stream.on("data", (chunk: Buffer) => {
-      if (
-        chunk.length >= 8 &&
-        chunk[0] <= 2 &&
-        chunk[1] === 0 &&
-        chunk[2] === 0 &&
-        chunk[3] === 0
-      ) {
-        chunks.push(chunk.slice(8));
-      } else {
-        chunks.push(chunk);
-      }
-    });
+      let stdout = "";
+      let stderr = "";
 
-    stream.on("end", () => {
-      const result = Buffer.concat(chunks)
-        .toString("utf8")
-        .replace(/[\x00-\x09\x0B-\x1F\x7F]/g, "");
-      resolve(result);
-    });
+      const stdoutStream = new Writable({
+        write(chunk, encoding, callback) {
+          stdout += chunk.toString();
+          callback();
+        },
+      });
 
-    stream.on("error", (err: Error) => {
-      reject(err);
+      const stderrStream = new Writable({
+        write(chunk, encoding, callback) {
+          stderr += chunk.toString();
+          callback();
+        },
+      });
+
+      container.modem.demuxStream(stream, stdoutStream, stderrStream);
+
+      let stdoutFinished = false;
+      let stderrFinished = false;
+
+      stdoutStream.on("finish", () => {
+        stdoutFinished = true;
+        if (stdoutFinished && stderrFinished) {
+          resolve({ stdout, stderr });
+        }
+      });
+
+      stderrStream.on("finish", () => {
+        stderrFinished = true;
+        if (stdoutFinished && stderrFinished) {
+          resolve({ stdout, stderr });
+        }
+      });
+
+      stream.on("error", (error: any) => {
+        reject(error);
+      });
+
+      stream.on("end", () => {
+        stdoutStream.end();
+        stderrStream.end();
+      });
     });
   });
 }

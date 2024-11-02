@@ -10,7 +10,7 @@ export async function createDockerContainer(
   const container = await docker.createContainer({
     Image: "gcc-gdb-image",
     Tty: false,
-    Cmd: ["tail", "-f", "/dev/null"],
+    Cmd: ["sleep", "3600"],
     OpenStdin: false,
     StdinOnce: false,
     Volumes: {
