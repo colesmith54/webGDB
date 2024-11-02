@@ -1,8 +1,11 @@
-import { Container } from "dockerode";
+// src/debugger.ts
+
+import { Container, Exec } from "dockerode";
 import { Socket } from "socket.io";
 import { ExecutionResult } from "./types";
 import { PassThrough, Writable, Readable } from "stream";
 import { GDBController } from "./gdbController";
+import Dockerode from "dockerode";
 
 export async function compileCodeInContainer(
   container: Container,
@@ -73,21 +76,10 @@ export async function startDebugSession(
     const gdbStdout = new PassThrough();
     const gdbStderr = new PassThrough();
 
-    execStream.on("data", (chunk: Buffer) => {
-      if (!chunk || chunk.length < 2) return;
-
-      const type = chunk[0];
-      const data = chunk.slice(1);
-
-      if (type === 1) {
-        gdbStdout.write(data);
-      } else if (type === 2) {
-        gdbStderr.write(data);
-      }
-    });
+    container.modem.demuxStream(execStream, gdbStdout, gdbStderr);
 
     execStream.on("end", () => {
-      console.log("exec ended");
+      console.log("execStream ended");
       gdbStdout.end();
       gdbStderr.end();
     });
@@ -114,6 +106,7 @@ export async function startDebugSession(
       stdin: gdbStdin,
       stdout: gdbStdout,
       stderr: gdbStderr,
+      file: `/code/${filename}`,
     });
 
     (socket as any).gdbController = gdbController;
@@ -134,14 +127,8 @@ export async function startDebugSession(
     });
 
     gdbController.on("breakpoint", async (data) => {
-      console.log(data);
-      // runCommand not working yet
-      // const stk = await gdbController.getStackFrames();
-      // const vars = await gdbController.getVariables();
-
-      const stk = "test1";
-      const vars = "test2";
-
+      const stk = await gdbController.getStackFrames();
+      const vars = await gdbController.getVariables();
       socket.emit("debugStopped", {
         line: data.line,
         stk: stk,
@@ -155,13 +142,15 @@ export async function startDebugSession(
     });
 
     try {
-      gdbController.init();
+      await gdbController.init();
 
       if (breakpoints && breakpoints.length > 0) {
-        console.log("Setting breakpoints:", breakpoints);
         for (const line of breakpoints) {
-          await gdbController.setBreakpoint(`/code/${filename}:${line}`);
+          await gdbController.setBreakpoint(line);
         }
+        await gdbController.sendCommand(
+          `-file-exec-and-symbols /code/${filename}.out`
+        );
       }
 
       await gdbController.run();
@@ -181,36 +170,8 @@ export async function startDebugSession(
   }
 }
 
-async function handleBreakpoint(payload: any, socket: Socket) {
-  const reason = payload["reason"];
-  const frame = payload["frame"];
-
-  if (reason === "breakpoint-hit") {
-    socket.emit("debugStopped", {
-      reason: "breakpoint-hit",
-      frame,
-    });
-
-    const gdbController: GDBController = (socket as any).gdbController;
-    if (gdbController) {
-      try {
-        const variables = await gdbController.getVariables();
-        socket.emit("debugVariables", { variables });
-      } catch (err) {
-        console.error("Error fetching variables:", err);
-      }
-    }
-  } else if (reason === "exited-normally") {
-    socket.emit("debugFinished", { message: "Program exited normally." });
-    const gdbController: GDBController = (socket as any).gdbController;
-    if (gdbController) {
-      await gdbController.quit();
-    }
-  }
-}
-
 async function streamToString(
-  exec: any
+  exec: Exec
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     let stdout = "";
@@ -235,15 +196,7 @@ async function streamToString(
         },
       });
 
-      stream.on("data", (chunk: Buffer) => {
-        const type = chunk[0];
-        const data = chunk.slice(1);
-        if (type === 1) {
-          stdoutStream.write(data);
-        } else if (type === 2) {
-          stderrStream.write(data);
-        }
-      });
+      exec.modem.demuxStream(stream, stdoutStream, stderrStream);
 
       stream.on("end", () => {
         resolve({ stdout, stderr });

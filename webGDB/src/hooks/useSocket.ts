@@ -42,5 +42,5 @@ export function useSocket({
         socket.off("debugFinished", onDebugFinished);
       }
     };
-  }, [onStdout, onStderr, onDebugStopped, onDebugFinished]);
+  }, []);
 }

@@ -7,6 +7,7 @@ interface GDBControllerOptions {
   stdin: Writable;
   stdout: Readable;
   stderr: Readable;
+  file: string;
 }
 
 interface GDBResponse {
@@ -20,16 +21,20 @@ export class GDBController extends EventEmitter {
   private stdin: Writable;
   private stdout: Readable;
   private stderr: Readable;
+  private file: string;
   private tokenCounter: number;
   private pendingResponses: Map<number, (response: GDBResponse) => void>;
+  private breakpoints: Map<number, string>;
 
   constructor(options: GDBControllerOptions) {
     super();
     this.stdin = options.stdin;
     this.stdout = options.stdout;
     this.stderr = options.stderr;
+    this.file = options.file;
     this.tokenCounter = 1;
     this.pendingResponses = new Map();
+    this.breakpoints = new Map();
 
     this.stdout.on("data", this.handleStdout.bind(this));
     this.stderr.on("data", this.handleStderr.bind(this));
@@ -55,9 +60,46 @@ export class GDBController extends EventEmitter {
   }
 
   private parseLine(line: string) {
-    if (!line) return;
+    if (!line) {
+      this.emit("stdout", { output: "" });
+      return;
+    }
 
-    if (line.includes("bkpt")) {
+    if (line === "(gdb)") {
+      return;
+    }
+
+    const end_marker = '~"[Inferior';
+    if (line.includes(end_marker)) {
+      const idx = line.indexOf(end_marker);
+      this.emit("stdout", { output: line.substring(0, idx) });
+      return;
+    }
+
+    const tokenMatch = line.match(/^(\d+)?([\^=~&\*])(\w+)(?:,([^]*))?$/);
+    if (tokenMatch) {
+      const token = tokenMatch[1] ? parseInt(tokenMatch[1], 10) : null;
+      const responseType = tokenMatch[2];
+      const responseIdentifier = tokenMatch[3];
+
+      if (token !== null) {
+        const responseHandler = this.pendingResponses.get(token);
+        if (responseHandler) {
+          const response = {
+            token,
+            type: responseType,
+            message: line,
+            payload: responseIdentifier,
+          };
+
+          this.pendingResponses.delete(token);
+          responseHandler(response);
+          return;
+        }
+      }
+    }
+
+    if (line.includes('*stopped,reason="breakpoint-hit"')) {
       const m = line.match(/line="(\d+)"/);
       const lineNum = m ? parseInt(m[1], 10) : null;
 
@@ -76,10 +118,6 @@ export class GDBController extends EventEmitter {
 
     if (line.includes('*stopped,reason="exited-normally"')) {
       this.emit("exit");
-      return;
-    }
-
-    if (line === "(gdb)") {
       return;
     }
 
@@ -105,26 +143,62 @@ export class GDBController extends EventEmitter {
       }
 
       this.pendingResponses.set(token, resolve);
+
+      const timeout = setTimeout(() => {
+        this.pendingResponses.delete(token);
+        reject(new Error(`Command "${command}" timed out after 2 seconds`));
+      }, 2000);
+
       const commandWithToken = `${token}${command}\n`;
       this.stdin.write(commandWithToken, (err) => {
         if (err) {
+          clearTimeout(timeout);
           this.pendingResponses.delete(token);
           reject(err);
         }
+      });
+
+      const originalResolve = resolve;
+      this.pendingResponses.set(token, (response: GDBResponse) => {
+        clearTimeout(timeout);
+        originalResolve(response);
       });
     });
   }
 
   public async init() {
-    await this.sendCommand("-gdb-set mi-async on");
     await this.sendCommand("-enable-pretty-printing");
   }
 
-  public async setBreakpoint(location: string) {
+  public async setBreakpoint(line: number) {
+    const location = `${this.file}:${line}`;
     const response = await this.sendCommand(`-break-insert ${location}`);
+
     if (response.type !== "^" || !response.payload.startsWith("done")) {
       throw new Error(`Failed to set breakpoint at ${location}`);
     }
+
+    const match = response.message.match(/number="(\d+)"/);
+    if (!match) {
+      throw new Error("Failed to parse breakpoint ID");
+    }
+
+    this.breakpoints.set(line, match[1]);
+  }
+
+  public async removeBreakpoint(line: number) {
+    const breakpointId = this.breakpoints.get(line);
+
+    if (!breakpointId) {
+      throw new Error(`Breakpoint not found at line ${line}`);
+    }
+
+    const response = await this.sendCommand(`-break-delete ${breakpointId}`);
+    if (response.type !== "^" || !response.payload.startsWith("done")) {
+      throw new Error(`Failed to remove breakpoint at ${line}`);
+    }
+
+    this.breakpoints.delete(line);
   }
 
   public async run() {
@@ -155,26 +229,73 @@ export class GDBController extends EventEmitter {
     }
   }
 
-  public async getStackFrames(): Promise<any> {
+  public async getStackFrames(): Promise<any[]> {
     const response = await this.sendCommand("-stack-list-frames");
     if (response.type !== "^" || !response.payload.startsWith("done")) {
       throw new Error("Failed to retrieve stack frames");
     }
-    return response.payload;
+
+    const framesMatch = response.message.match(/stack=\[(.*)\]/);
+    if (!framesMatch) {
+      throw new Error("Invalid stack frames format");
+    }
+
+    const framesStr = framesMatch[1];
+    const frameRegex = /{([^}]+)}/g;
+    const frames: any[] = [];
+    let match;
+    while ((match = frameRegex.exec(framesStr)) !== null) {
+      const frameStr = match[1];
+      const frameObj: any = {};
+      const keyValueRegex = /(\w+)="([^"]*)"/g;
+      let kvMatch;
+      while ((kvMatch = keyValueRegex.exec(frameStr)) !== null) {
+        frameObj[kvMatch[1]] = kvMatch[2];
+      }
+      frames.push(frameObj);
+    }
+
+    return frames;
   }
 
-  public async getVariables(): Promise<any> {
+  public async getVariables(): Promise<any[]> {
     const response = await this.sendCommand(
-      "-var-list-children --all-values --simple-values --no-children"
+      "-stack-list-variables --all-values"
     );
     if (response.type !== "^" || !response.payload.startsWith("done")) {
       throw new Error("Failed to retrieve variables");
     }
-    return response.payload;
+
+    const varsMatch = response.message.match(/variables=\[(.*)\]/);
+    if (!varsMatch) {
+      throw new Error("Invalid variables format");
+    }
+
+    const varsStr = varsMatch[1];
+    const varRegex = /{([^}]+)}/g;
+    const variables: any[] = [];
+    let match;
+    while ((match = varRegex.exec(varsStr)) !== null) {
+      const varStr = match[1];
+      const varObj: any = {};
+      const keyValueRegex = /(\w+)="([^"]*)"/g;
+      let kvMatch;
+      while ((kvMatch = keyValueRegex.exec(varStr)) !== null) {
+        varObj[kvMatch[1]] = kvMatch[2];
+      }
+      variables.push(varObj);
+    }
+
+    return variables;
   }
 
   public async quit() {
-    await this.sendCommand("-gdb-exit");
-    this.stdin.end();
+    try {
+      this.stdin.write(`${this.tokenCounter++}-gdb-exit\n`);
+      this.stdin.end();
+      this.pendingResponses.clear();
+    } catch (error) {
+      console.error("Failed to exit GDB:", error);
+    }
   }
 }

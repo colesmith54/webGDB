@@ -10,9 +10,15 @@ import React, {
 import Editor, { Monaco, OnMount } from "@monaco-editor/react";
 import * as monacoEditor from "monaco-editor";
 
-const CodeEditor = forwardRef((props, ref) => {
+interface CodeEditorProps {
+  handleSetBreakpoint: (line: number) => void;
+  handleRemoveBreakpoint: (line: number) => void;
+}
+
+const CodeEditor = forwardRef((props: CodeEditorProps, ref) => {
+  const { handleSetBreakpoint, handleRemoveBreakpoint } = props;
   const [code, setCode] = useState<string>(
-    `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "testing!" << '\\n' << "hey!"; \n    cout << endl;\n    return 0;\n}`
+    `#include <iostream>\nusing namespace std;\n\nint main() {\n    int n = 4, x = 6;\n    cout << "before breakpoint" << endl;\n    cout << endl;\n    cout << "after breakpoint" << endl;\n    return 0;\n}`
   );
   const [breakpoints, setBreakpoints] = useState<number[]>([]);
   const [decorationIds, setDecorationIds] = useState<string[]>([]);
@@ -47,8 +53,10 @@ const CodeEditor = forwardRef((props, ref) => {
   const toggleBreakpoint = (lineNumber: number) => {
     setBreakpoints((prevBreakpoints) => {
       if (prevBreakpoints.includes(lineNumber)) {
+        handleRemoveBreakpoint(lineNumber);
         return prevBreakpoints.filter((ln) => ln !== lineNumber);
       } else {
+        handleSetBreakpoint(lineNumber);
         return [...prevBreakpoints, lineNumber];
       }
     });

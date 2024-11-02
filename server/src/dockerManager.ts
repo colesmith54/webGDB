@@ -27,7 +27,6 @@ export async function createDockerContainer(
   });
 
   await container.start();
-
   return container;
 }
 

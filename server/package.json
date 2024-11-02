@@ -15,7 +15,7 @@
   "devDependencies": {
     "@types/dockerode": "^3.3.31",
     "@types/express": "^5.0.0",
-    "@types/node": "^22.8.4",
+    "@types/node": "^22.8.6",
     "@types/socket.io": "^3.0.1",
     "@types/uuid": "^10.0.0",
     "patch-package": "^8.0.0",

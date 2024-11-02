@@ -45,6 +45,9 @@ export function handleSocketConnection(socket: Socket): void {
     try {
       const clientContainer: Container = (socket as any).container;
       if (!clientContainer) {
+        socket.emit("stderr", {
+          error: "No Docker container associated with this client.",
+        });
         throw new Error("No Docker container associated with this client.");
       }
 
@@ -119,8 +122,17 @@ export function handleSocketConnection(socket: Socket): void {
             await gdbController.stepOut();
             break;
           case "set_breakpoint":
+            console.log("Setting breakpoint at", location);
             if (location) {
               await gdbController.setBreakpoint(location);
+            } else {
+              throw new Error("Breakpoint location not provided.");
+            }
+            break;
+          case "remove_breakpoint":
+            console.log("Removing breakpoint at", location);
+            if (location) {
+              await gdbController.removeBreakpoint(location);
             } else {
               throw new Error("Breakpoint location not provided.");
             }
