@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [stackFrames, setStackFrames] = useState<any[]>([]);
   const [debugControlsVisible, setDebugControlsVisible] =
     useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
 
   const isDebuggingRef = useRef(isDebugging);
   useEffect(() => {
@@ -57,11 +58,37 @@ const App: React.FC = () => {
     setStackFrames([]);
   };
 
+  const handleConnect = () => {
+    setIsConnected(true);
+    setTerminalError("");
+  };
+
+  const handleConnectFailed = () => {
+    const errorMessage = "Connection Failed: Unable to establish a connection.";
+    setTerminalError(errorMessage);
+    setDebugControlsVisible(false);
+    setIsConnected(false);
+    setVariables([]);
+    setStackFrames([]);
+  };
+
+  const handleDisconnect = (reason: string) => {
+    const errorMessage = `Socket disconnected: ${reason}`;
+    setTerminalError((prev) => prev + errorMessage + "\n");
+    setDebugControlsVisible(false);
+    setIsDebugging(false);
+    setVariables([]);
+    setStackFrames([]);
+  };
+
   useSocket({
     onStdout: handleStdout,
     onStderr: handleStderr,
     onDebugStopped: handleDebugStopped,
     onDebugFinished: handleDebugFinished,
+    onConnect: handleConnect,
+    onDisconnect: handleDisconnect,
+    onConnectFailed: handleConnectFailed,
   });
 
   const handleCompile = () => {
@@ -138,14 +165,14 @@ const App: React.FC = () => {
           <button
             className="btn btn-primary flex-grow"
             onClick={handleCompile}
-            disabled={isDebugging}
+            disabled={isDebugging || !isConnected}
           >
             Compile & Run
           </button>
           <button
             className="btn btn-secondary flex-grow"
             onClick={handleDebug}
-            disabled={isDebugging}
+            disabled={isDebugging || !isConnected}
           >
             Debug
           </button>
