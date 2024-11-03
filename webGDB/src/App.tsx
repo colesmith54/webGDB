@@ -5,14 +5,18 @@ import CodeEditor from "./components/CodeEditor";
 import Terminal from "./components/Terminal";
 import socket from "./socket";
 import { useSocket } from "./hooks/useSocket";
+import { Variable, StackFrame } from "./types";
 
 const App: React.FC = () => {
   const codeEditorRef = useRef<any>(null);
   const [terminalOutput, setTerminalOutput] = useState<string>("");
   const [terminalError, setTerminalError] = useState<string>("");
   const [isDebugging, setIsDebugging] = useState<boolean>(false);
-  const [variables, setVariables] = useState<any[]>([]);
-  const [stackFrames, setStackFrames] = useState<any[]>([]);
+
+  const [variables, setVariables] = useState<Variable[]>([]);
+  const [stackFrames, setStackFrames] = useState<StackFrame[]>([]);
+  const [currentLine, setCurrentLine] = useState<number | null>(null); // Track current line
+
   const [debugControlsVisible, setDebugControlsVisible] =
     useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -32,6 +36,7 @@ const App: React.FC = () => {
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
+    setCurrentLine(null); // Reset current line
   };
 
   const handleExit = () => {
@@ -41,13 +46,35 @@ const App: React.FC = () => {
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
+    setCurrentLine(null);
   };
 
-  const handleDebugStopped = (data: { line: string; stk: any; vars: any }) => {
+  const handleDebugStopped = (data: {
+    line: string;
+    stk: StackFrame;
+    vars: Variable;
+  }) => {
     setDebugControlsVisible(true);
     setIsDebugging(true);
 
-    console.log(data);
+    const lineNumber = parseInt(data.line, 10);
+    setCurrentLine(lineNumber);
+
+    const parsedStackFrames: StackFrame[] = data.stk.map((frame: any) => ({
+      addr: frame.addr,
+      func: frame.func,
+      level: frame.level,
+      line: parseInt(frame.line, 10),
+    }));
+    setStackFrames(parsedStackFrames);
+
+    const parsedVariables: Variable[] = data.vars.map((variable: any) => ({
+      name: variable.name,
+      value: variable.value,
+    }));
+    setVariables(parsedVariables);
+
+    console.log({ lineNumber, parsedStackFrames, parsedVariables });
   };
 
   const handleDebugFinished = () => {
@@ -55,6 +82,7 @@ const App: React.FC = () => {
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
+    setCurrentLine(null);
   };
 
   const handleConnect = () => {
@@ -72,6 +100,7 @@ const App: React.FC = () => {
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
+    setCurrentLine(null);
   };
 
   useSocket({
@@ -90,6 +119,7 @@ const App: React.FC = () => {
       setTerminalOutput("");
       setTerminalError("");
       setDebugControlsVisible(false);
+      setCurrentLine(null);
 
       socket.emit("codeSubmission", { code });
     }
@@ -103,6 +133,7 @@ const App: React.FC = () => {
       setTerminalOutput("");
       setTerminalError("");
       setIsDebugging(true);
+      setCurrentLine(null);
 
       socket.emit("debugStart", { code, breakpoints });
     }
@@ -143,85 +174,107 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen">
-      <div className="w-1/2 border-r">
-        <CodeEditor
-          ref={codeEditorRef}
-          handleSetBreakpoint={handleSetBreakpoint}
-          handleRemoveBreakpoint={handleRemoveBreakpoint}
-        />
-      </div>
-
-      <div className="w-1/2 flex flex-col">
-        <div className="p-4 flex space-x-2">
-          <button
-            className="btn btn-primary flex-grow"
-            onClick={handleCompile}
-            disabled={isDebugging || !isConnected}
-          >
-            Compile & Run
-          </button>
-          <button
-            className="btn btn-secondary flex-grow"
-            onClick={handleDebug}
-            disabled={isDebugging || !isConnected}
-          >
-            Debug
-          </button>
+    <div className="flex h-screen flex-col">
+      <div className="flex flex-1">
+        <div className="w-1/2 border-r">
+          <CodeEditor
+            ref={codeEditorRef}
+            handleSetBreakpoint={handleSetBreakpoint}
+            handleRemoveBreakpoint={handleRemoveBreakpoint}
+            currentLine={currentLine}
+            isReadOnly={isDebugging}
+          />
         </div>
 
-        {debugControlsVisible && (
+        <div className="w-1/2 flex flex-col">
           <div className="p-4 flex space-x-2">
-            <div className="flex space-x-4 flex-grow">
-              <button className="btn btn-primary" onClick={handleResume}>
-                Resume
-              </button>
-              <button className="btn btn-primary" onClick={handleNext}>
-                Next
-              </button>
-              <button className="btn btn-primary" onClick={handleStepIn}>
-                Step In
-              </button>
-              <button className="btn btn-primary" onClick={handleStepOver}>
-                Step Over
-              </button>
-            </div>
-
-            <button className="btn btn-secondary ml-auto" onClick={handleExit}>
-              Exit
+            <button
+              className="btn btn-primary flex-grow"
+              onClick={handleCompile}
+              disabled={isDebugging || !isConnected}
+            >
+              Compile & Run
+            </button>
+            <button
+              className="btn btn-secondary flex-grow"
+              onClick={handleDebug}
+              disabled={isDebugging || !isConnected}
+            >
+              Debug
             </button>
           </div>
-        )}
 
-        <div className="h-1/2 p-4 overflow-auto bg-gray-800 text-white">
-          <Terminal output={terminalOutput} error={terminalError} />
+          {debugControlsVisible && (
+            <div className="p-4 flex space-x-2">
+              <div className="flex space-x-4 flex-grow">
+                <button className="btn btn-primary" onClick={handleResume}>
+                  Resume
+                </button>
+                <button className="btn btn-primary" onClick={handleNext}>
+                  Next
+                </button>
+                <button className="btn btn-primary" onClick={handleStepIn}>
+                  Step In
+                </button>
+                <button className="btn btn-primary" onClick={handleStepOver}>
+                  Step Over
+                </button>
+              </div>
+
+              <button
+                className="btn btn-secondary ml-auto"
+                onClick={handleExit}
+              >
+                Exit
+              </button>
+            </div>
+          )}
+
+          <div className="h-1/3 p-4 overflow-auto bg-gray-800 text-white">
+            <Terminal output={terminalOutput} error={terminalError} />
+          </div>
+
+          {isDebugging && stackFrames.length > 0 && (
+            <div className="p-4 bg-gray-800 w-full">
+              <h2 className="text-lg font-semibold mb-2">Stack Frames</h2>
+              <table className="table-auto w-full text-left">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2">#</th>
+                    <th className="px-4 py-2">Function</th>
+                    <th className="px-4 py-2">Address</th>
+                    <th className="px-4 py-2">File (line)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stackFrames.map((frame, index) => (
+                    <tr key={index}>
+                      <td className="border px-4 py-2">{index}</td>
+                      <td className="border px-4 py-2">{frame.func}</td>
+                      <td className="border px-4 py-2">{frame.addr}</td>
+                      <td className="border px-4 py-2">
+                        main.cpp:{frame.line}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {isDebugging && variables.length > 0 && (
+            <div className="p-4 bg-gray-800 w-full">
+              <h2 className="text-lg font-semibold mb-2">Variables</h2>
+              <ul>
+                {variables.map((variable, index) => (
+                  <li key={index} className="border-b py-1">
+                    {variable.name}: {variable.value}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-
-        {isDebugging && stackFrames.length > 0 && (
-          <div className="p-4 bg-gray-100">
-            <h2 className="text-lg font-semibold">Stack Frames</h2>
-            <ul>
-              {stackFrames.map((frame, index) => (
-                <li key={index}>
-                  #{index} {frame.function} at {frame.file}:{frame.line}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {isDebugging && variables.length > 0 && (
-          <div className="p-4 bg-gray-100">
-            <h2 className="text-lg font-semibold">Variables</h2>
-            <ul>
-              {variables.map((variable, index) => (
-                <li key={index}>
-                  {variable.name}: {variable.value}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </div>
   );
