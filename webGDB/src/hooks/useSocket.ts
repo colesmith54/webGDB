@@ -8,7 +8,6 @@ interface UseSocketProps {
   onStderr?: (data: { error: string }) => void;
   onDebugStopped?: (data: { line: string; stk: any; vars: any }) => void;
   onDebugFinished?: () => void;
-  onDisconnect?: (reason: string) => void;
   onConnectFailed?: () => void;
   onConnect?: () => void;
 }
@@ -18,7 +17,6 @@ export const useSocket = ({
   onStderr,
   onDebugStopped,
   onDebugFinished,
-  onDisconnect,
   onConnectFailed,
   onConnect,
 }: UseSocketProps) => {
@@ -35,16 +33,14 @@ export const useSocket = ({
     if (onDebugFinished) {
       socket.on("debugFinished", onDebugFinished);
     }
-    if (onDisconnect) {
-      socket.on("disconnect", (reason: string) => {
-        onDisconnect(reason);
-      });
-    }
     if (onConnectFailed) {
       socket.on("connect_error", () => {
         onConnectFailed();
       });
       socket.on("connect_failed", () => {
+        onConnectFailed();
+      });
+      socket.on("disconnect", () => {
         onConnectFailed();
       });
     }
@@ -59,8 +55,9 @@ export const useSocket = ({
       if (onStderr) socket.off("stderr", onStderr);
       if (onDebugStopped) socket.off("debugStopped", onDebugStopped);
       if (onDebugFinished) socket.off("debugFinished", onDebugFinished);
-      if (onDisconnect) socket.off("disconnect", onDisconnect);
+      if (onConnectFailed) socket.off("disconnect", onConnectFailed);
       if (onConnectFailed) socket.off("connect_failed", onConnectFailed);
+      if (onConnectFailed) socket.off("connect_error", onConnectFailed);
       if (onConnect) socket.off("connect", onConnect);
     };
   }, [
@@ -68,7 +65,6 @@ export const useSocket = ({
     onStderr,
     onDebugStopped,
     onDebugFinished,
-    onDisconnect,
     onConnectFailed,
     onConnect,
   ]);

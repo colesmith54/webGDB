@@ -51,7 +51,6 @@ const App: React.FC = () => {
   };
 
   const handleDebugFinished = () => {
-    console.log("Debug finished");
     setDebugControlsVisible(false);
     setIsDebugging(false);
     setVariables([]);
@@ -60,22 +59,16 @@ const App: React.FC = () => {
 
   const handleConnect = () => {
     setIsConnected(true);
+    setTerminalOutput("");
     setTerminalError("");
   };
 
   const handleConnectFailed = () => {
     const errorMessage = "Connection Failed: Unable to establish a connection.";
+    setTerminalOutput("");
     setTerminalError(errorMessage);
     setDebugControlsVisible(false);
     setIsConnected(false);
-    setVariables([]);
-    setStackFrames([]);
-  };
-
-  const handleDisconnect = (reason: string) => {
-    const errorMessage = `Socket disconnected: ${reason}`;
-    setTerminalError((prev) => prev + errorMessage + "\n");
-    setDebugControlsVisible(false);
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
@@ -87,18 +80,18 @@ const App: React.FC = () => {
     onDebugStopped: handleDebugStopped,
     onDebugFinished: handleDebugFinished,
     onConnect: handleConnect,
-    onDisconnect: handleDisconnect,
     onConnectFailed: handleConnectFailed,
   });
 
   const handleCompile = () => {
     if (codeEditorRef.current) {
       const code = codeEditorRef.current.getCode();
-      socket.emit("codeSubmission", { code });
 
       setTerminalOutput("");
       setTerminalError("");
       setDebugControlsVisible(false);
+
+      socket.emit("codeSubmission", { code });
     }
   };
 
@@ -107,11 +100,11 @@ const App: React.FC = () => {
       const code = codeEditorRef.current.getCode();
       const breakpoints = codeEditorRef.current.getBreakpoints();
 
-      socket.emit("debugStart", { code, breakpoints });
-
       setTerminalOutput("");
       setTerminalError("");
       setIsDebugging(true);
+
+      socket.emit("debugStart", { code, breakpoints });
     }
   };
 
@@ -132,7 +125,6 @@ const App: React.FC = () => {
   };
 
   const handleSetBreakpoint = (line: number) => {
-    console.log(isDebuggingRef.current);
     if (isDebuggingRef.current) {
       socket.emit("debugCommand", {
         type: "set_breakpoint",
