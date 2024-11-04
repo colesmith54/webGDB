@@ -15,7 +15,6 @@ export interface Variable {
 
 export interface StackFrame {
   func: string;
-  file: string;
   line: number;
   addr: string;
 }
@@ -25,3 +24,8 @@ export interface DebugStoppedData {
   stk: StackFrame[];
   vars: Variable[];
 }
+
+export type TerminalEntry = {
+  type: "input" | "output" | "error";
+  text: string;
+};

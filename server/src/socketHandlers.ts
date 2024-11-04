@@ -34,6 +34,7 @@ export function handleSocketConnection(socket: Socket): void {
     const { code } = data;
     const sessionId = uuidv4();
     const filename = `code_${sessionId}.cpp`;
+
     ensureCodeDirExists();
     const filepath = saveCodeToFile(code, filename);
 
@@ -51,6 +52,7 @@ export function handleSocketConnection(socket: Socket): void {
         filename,
         socket
       );
+
       (socket as any).execStream = execStream;
       console.log(`Code executed for client ${socket.id}`);
     } catch (error: any) {
@@ -68,7 +70,6 @@ export function handleSocketConnection(socket: Socket): void {
       .gdbController;
 
     if (gdbController) {
-      console.log("yes");
       try {
         gdbController.sendProgramInput(input);
         console.log(`Debug input received from client ${socket.id}: ${input}`);
@@ -79,7 +80,6 @@ export function handleSocketConnection(socket: Socket): void {
         });
       }
     } else {
-      console.log("no");
       const execStream: any = (socket as any).execStream;
       if (execStream && execStream.stdin) {
         execStream.stdin.write(input + "\n");
@@ -89,9 +89,8 @@ export function handleSocketConnection(socket: Socket): void {
       }
     }
   });
-  socket.on("debugStart", async (data) => {
-    console.log("Received debug start from", socket.id);
 
+  socket.on("debugStart", async (data) => {
     const { code, breakpoints } = data;
     const sessionId = uuidv4();
     const filename = `code_${sessionId}.cpp`;
@@ -116,9 +115,7 @@ export function handleSocketConnection(socket: Socket): void {
       }
 
       await startDebugSession(clientContainer, filename, breakpoints, socket);
-      console.log("Debug session started.");
     } catch (error: any) {
-      console.error("Error during debugging:", error);
       socket.emit("stderr", { error: error.message });
     } finally {
       deleteFile(filepath);

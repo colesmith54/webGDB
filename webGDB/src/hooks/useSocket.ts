@@ -6,6 +6,7 @@ import socket from "../socket";
 interface UseSocketProps {
   onStdout?: (data: { output: string }) => void;
   onStderr?: (data: { error: string }) => void;
+  onRunFinished?: () => void;
   onDebugStopped?: (data: { line: string; stk: any; vars: any }) => void;
   onDebugFinished?: () => void;
   onConnectFailed?: () => void;
@@ -15,6 +16,7 @@ interface UseSocketProps {
 export const useSocket = ({
   onStdout,
   onStderr,
+  onRunFinished,
   onDebugStopped,
   onDebugFinished,
   onConnectFailed,
@@ -26,6 +28,9 @@ export const useSocket = ({
     }
     if (onStderr) {
       socket.on("stderr", onStderr);
+    }
+    if (onRunFinished) {
+      socket.on("runFinished", onRunFinished);
     }
     if (onDebugStopped) {
       socket.on("debugStopped", onDebugStopped);
@@ -53,6 +58,7 @@ export const useSocket = ({
     return () => {
       if (onStdout) socket.off("stdout", onStdout);
       if (onStderr) socket.off("stderr", onStderr);
+      if (onRunFinished) socket.off("runFinished", onRunFinished);
       if (onDebugStopped) socket.off("debugStopped", onDebugStopped);
       if (onDebugFinished) socket.off("debugFinished", onDebugFinished);
       if (onConnectFailed) socket.off("disconnect", onConnectFailed);
@@ -63,6 +69,7 @@ export const useSocket = ({
   }, [
     onStdout,
     onStderr,
+    onRunFinished,
     onDebugStopped,
     onDebugFinished,
     onConnectFailed,

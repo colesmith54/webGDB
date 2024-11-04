@@ -6,11 +6,13 @@ import Terminal from "./components/Terminal";
 import socket from "./socket";
 import { useSocket } from "./hooks/useSocket";
 import { Variable, StackFrame } from "./types";
+import { TerminalEntry } from "./types";
 
 const App: React.FC = () => {
   const codeEditorRef = useRef<any>(null);
-  const [terminalOutput, setTerminalOutput] = useState<string>("");
-  const [terminalError, setTerminalError] = useState<string>("");
+  const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>([]);
+
+  const [canInput, setCanInput] = useState<boolean>(false);
   const [isDebugging, setIsDebugging] = useState<boolean>(false);
 
   const [variables, setVariables] = useState<Variable[]>([]);
@@ -21,40 +23,37 @@ const App: React.FC = () => {
     useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  const [inputNeeded, setInputNeeded] = useState<boolean>(false);
-
   const isDebuggingRef = useRef(isDebugging);
   useEffect(() => {
     isDebuggingRef.current = isDebugging;
   }, [isDebugging]);
 
   const handleStdout = (data: { output: string }) => {
-    setTerminalOutput((prev) => prev + data.output + "\n");
+    setTerminalEntries((prev) => [
+      ...prev,
+      { type: "output", text: data.output },
+    ]);
   };
 
   const handleStderr = (data: { error: string }) => {
-    setTerminalError((prev) => prev + data.error + "\n");
+    setTerminalEntries((prev) => [
+      ...prev,
+      { type: "error", text: data.error },
+    ]);
     setDebugControlsVisible(false);
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
-    setInputNeeded(false);
-  };
-
-  const handleInputRequest = () => {
-    setInputNeeded(true);
   };
 
   const handleExit = () => {
-    setTerminalOutput("");
-    setTerminalError("");
+    setTerminalEntries([]);
     setDebugControlsVisible(false);
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
-    setInputNeeded(false);
   };
 
   const handleDebugStopped = (data: {
@@ -64,6 +63,7 @@ const App: React.FC = () => {
   }) => {
     setDebugControlsVisible(true);
     setIsDebugging(true);
+    setCanInput(false);
 
     const lineNumber = parseInt(data.line, 10);
     setCurrentLine(lineNumber);
@@ -89,18 +89,17 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
+    setCanInput(false);
   };
 
   const handleConnect = () => {
     setIsConnected(true);
-    setTerminalOutput("");
-    setTerminalError("");
+    setTerminalEntries([]);
   };
 
   const handleConnectFailed = () => {
     const errorMessage = "Connection Failed: Unable to establish a connection.";
-    setTerminalOutput("");
-    setTerminalError(errorMessage);
+    setTerminalEntries([{ type: "error", text: errorMessage }]);
     setDebugControlsVisible(false);
     setIsConnected(false);
     setIsDebugging(false);
@@ -109,10 +108,14 @@ const App: React.FC = () => {
     setCurrentLine(null);
   };
 
+  const handleRunFinished = () => {
+    setCanInput(false);
+  };
+
   useSocket({
     onStdout: handleStdout,
     onStderr: handleStderr,
-    onInputRequest: handleInputRequest,
+    onRunFinished: handleRunFinished,
     onDebugStopped: handleDebugStopped,
     onDebugFinished: handleDebugFinished,
     onConnect: handleConnect,
@@ -123,11 +126,10 @@ const App: React.FC = () => {
     if (codeEditorRef.current) {
       const code = codeEditorRef.current.getCode();
 
-      setTerminalOutput("");
-      setTerminalError("");
+      setTerminalEntries([]);
       setDebugControlsVisible(false);
       setCurrentLine(null);
-      setInputNeeded(false);
+      setCanInput(true);
 
       socket.emit("codeSubmission", { code });
     }
@@ -138,28 +140,32 @@ const App: React.FC = () => {
       const code = codeEditorRef.current.getCode();
       const breakpoints = codeEditorRef.current.getBreakpoints();
 
-      setTerminalOutput("");
-      setTerminalError("");
+      setTerminalEntries([]);
       setIsDebugging(true);
       setCurrentLine(null);
+      setCanInput(true);
 
       socket.emit("debugStart", { code, breakpoints });
     }
   };
 
   const handleResume = () => {
+    setCanInput(true);
     socket.emit("debugCommand", { type: "continue" });
   };
 
   const handleNext = () => {
+    setCanInput(true);
     socket.emit("debugCommand", { type: "step_over" });
   };
 
   const handleStepIn = () => {
+    setCanInput(true);
     socket.emit("debugCommand", { type: "step_into" });
   };
 
   const handleStepOver = () => {
+    setCanInput(true);
     socket.emit("debugCommand", { type: "step_over" });
   };
 
@@ -184,8 +190,7 @@ const App: React.FC = () => {
   const handleSendInput = (input: string) => {
     input = input + "\n";
     socket.emit("input", { input });
-    setInputNeeded(false);
-    setTerminalOutput((prev) => prev + input);
+    setTerminalEntries((prev) => [...prev, { type: "input", text: input }]);
   };
 
   return (
@@ -247,10 +252,9 @@ const App: React.FC = () => {
 
           <div className="h-1/3 p-4 overflow-auto bg-gray-800 text-white">
             <Terminal
-              output={terminalOutput}
-              error={terminalError}
-              inputNeeded={inputNeeded}
+              terminalEntries={terminalEntries}
               onSendInput={handleSendInput}
+              canInput={canInput}
             />
           </div>
 

@@ -12,35 +12,46 @@ export async function compileAndRunCodeInContainer(
   const compileCommand = `g++ /code/${filename} -o /code/${filename}.out`;
   const runCommand = `/code/${filename}.out`;
 
-  const compileExec = await container.exec({
-    Cmd: ["sh", "-c", compileCommand],
-    AttachStdout: true,
-    AttachStderr: true,
-    Tty: false,
-  });
+  try {
+    const compileExec = await container.exec({
+      Cmd: ["sh", "-c", compileCommand],
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+    });
 
-  const compileOutput = await execToString(container, compileExec);
+    const compileOutput = await execToString(container, compileExec);
 
-  if (compileOutput.stderr.trim()) {
-    socket.emit("stderr", { error: compileOutput.stderr });
+    if (compileOutput.stderr.trim()) {
+      socket.emit("stderr", { error: compileOutput.stderr });
+      socket.emit("runFinished");
+      return {
+        stdout: "",
+        stderr: compileOutput.stderr,
+        stdin: new PassThrough(),
+      };
+    }
+
+    const runExec = await container.exec({
+      Cmd: ["sh", "-c", runCommand],
+      AttachStdout: true,
+      AttachStderr: true,
+      AttachStdin: true,
+      Tty: false,
+    });
+
+    const execStream = await execToStream(container, runExec, socket);
+
+    return execStream;
+  } catch (error) {
+    socket.emit("stderr", { error: error.message || String(error) });
+    socket.emit("runFinished");
     return {
       stdout: "",
-      stderr: compileOutput.stderr,
+      stderr: error.message || String(error),
       stdin: new PassThrough(),
     };
   }
-
-  const runExec = await container.exec({
-    Cmd: ["sh", "-c", runCommand],
-    AttachStdout: true,
-    AttachStderr: true,
-    AttachStdin: true,
-    Tty: false,
-  });
-
-  const execStream = await execToStream(container, runExec, socket);
-
-  return execStream;
 }
 
 async function execToStream(
@@ -78,6 +89,18 @@ async function execToStream(
       container.modem.demuxStream(stream, stdoutStream, stderrStream);
 
       stdinStream.pipe(stream);
+
+      stream.on("end", () => {
+        stdoutStream.end();
+        stderrStream.end();
+        socket.emit("runFinished");
+      });
+
+      stream.on("error", (error: any) => {
+        socket.emit("stderr", { error: error.message || String(error) });
+        socket.emit("runFinished");
+        reject(error);
+      });
 
       resolve({ stdout, stderr, stdin: stdinStream });
     });
