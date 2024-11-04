@@ -45,6 +45,7 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
+    setCanInput(false);
   };
 
   const handleExit = () => {

@@ -25,8 +25,9 @@ const CodeEditor = forwardRef((props: CodeEditorProps, ref) => {
     isReadOnly,
   } = props;
   const [code, setCode] = useState<string>(
-    `#include <bits/stdc++.h>
-    
+    `#include <iostream>
+#include <vector>
+
 using namespace std;
 using ll = long long;
 using ii = pair<int, int>;
