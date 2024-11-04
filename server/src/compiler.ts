@@ -1,53 +1,95 @@
+// src/compiler.ts
+
 import { Container, Exec } from "dockerode";
-import { ExecutionResult } from "./types";
-import { Writable } from "stream";
+import { Writable, PassThrough } from "stream";
+import { Socket } from "socket.io";
 
 export async function compileAndRunCodeInContainer(
   container: Container,
-  filename: string
-): Promise<ExecutionResult> {
-  try {
-    const compileCommand = `g++ /code/${filename} -o /code/${filename}.out`;
-    const runCommand = `/code/${filename}.out`;
+  filename: string,
+  socket: Socket
+): Promise<{ stdout: string; stderr: string; stdin: PassThrough }> {
+  const compileCommand = `g++ /code/${filename} -o /code/${filename}.out`;
+  const runCommand = `/code/${filename}.out`;
 
-    const compileExec = await container.exec({
-      Cmd: ["sh", "-c", compileCommand],
-      AttachStdout: true,
-      AttachStderr: true,
-      Tty: false,
-    });
+  const compileExec = await container.exec({
+    Cmd: ["sh", "-c", compileCommand],
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: false,
+  });
 
-    const compileOutput = await execToString(container, compileExec);
+  const compileOutput = await execToString(container, compileExec);
 
-    if (compileOutput.stderr.trim()) {
-      return { success: false, error: compileOutput.stderr };
-    }
-
-    const runExec = await container.exec({
-      Cmd: ["sh", "-c", runCommand],
-      AttachStdout: true,
-      AttachStderr: true,
-      Tty: false,
-    });
-
-    const runOutput = await execToString(container, runExec);
-
-    if (runOutput.stderr.trim()) {
-      return { success: false, error: runOutput.stderr };
-    }
-
-    return { success: true, output: runOutput.stdout };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  if (compileOutput.stderr.trim()) {
+    socket.emit("stderr", { error: compileOutput.stderr });
+    return {
+      stdout: "",
+      stderr: compileOutput.stderr,
+      stdin: new PassThrough(),
+    };
   }
+
+  const runExec = await container.exec({
+    Cmd: ["sh", "-c", runCommand],
+    AttachStdout: true,
+    AttachStderr: true,
+    AttachStdin: true,
+    Tty: false,
+  });
+
+  const execStream = await execToStream(container, runExec, socket);
+
+  return execStream;
+}
+
+async function execToStream(
+  container: Container,
+  exec: Exec,
+  socket: Socket
+): Promise<{ stdout: string; stderr: string; stdin: PassThrough }> {
+  return new Promise((resolve, reject) => {
+    exec.start({ hijack: true, stdin: true }, (err, stream) => {
+      if (err) return reject(err);
+
+      let stdout = "";
+      let stderr = "";
+
+      const stdoutStream = new Writable({
+        write(chunk, encoding, callback) {
+          const chunkStr = chunk.toString();
+          stdout += chunkStr;
+          socket.emit("stdout", { output: chunkStr });
+          callback();
+        },
+      });
+
+      const stderrStream = new Writable({
+        write(chunk, encoding, callback) {
+          const chunkStr = chunk.toString();
+          stderr += chunkStr;
+          socket.emit("stderr", { error: chunkStr });
+          callback();
+        },
+      });
+
+      const stdinStream = new PassThrough();
+
+      container.modem.demuxStream(stream, stdoutStream, stderrStream);
+
+      stdinStream.pipe(stream);
+
+      resolve({ stdout, stderr, stdin: stdinStream });
+    });
+  });
 }
 
 async function execToString(
   container: Container,
   exec: Exec
 ): Promise<{ stdout: string; stderr: string }> {
-  return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    exec.start({ hijack: true, stdin: false }, (err, stream) => {
+  return new Promise((resolve, reject) => {
+    exec.start({ hijack: true, stdin: true }, (err, stream) => {
       if (err) return reject(err);
 
       let stdout = "";

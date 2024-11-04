@@ -15,11 +15,13 @@ const App: React.FC = () => {
 
   const [variables, setVariables] = useState<Variable[]>([]);
   const [stackFrames, setStackFrames] = useState<StackFrame[]>([]);
-  const [currentLine, setCurrentLine] = useState<number | null>(null); // Track current line
+  const [currentLine, setCurrentLine] = useState<number | null>(null);
 
   const [debugControlsVisible, setDebugControlsVisible] =
     useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+
+  const [inputNeeded, setInputNeeded] = useState<boolean>(false);
 
   const isDebuggingRef = useRef(isDebugging);
   useEffect(() => {
@@ -36,7 +38,12 @@ const App: React.FC = () => {
     setIsDebugging(false);
     setVariables([]);
     setStackFrames([]);
-    setCurrentLine(null); // Reset current line
+    setCurrentLine(null);
+    setInputNeeded(false);
+  };
+
+  const handleInputRequest = () => {
+    setInputNeeded(true);
   };
 
   const handleExit = () => {
@@ -47,12 +54,13 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
+    setInputNeeded(false);
   };
 
   const handleDebugStopped = (data: {
     line: string;
-    stk: StackFrame;
-    vars: Variable;
+    stk: StackFrame[];
+    vars: Variable[];
   }) => {
     setDebugControlsVisible(true);
     setIsDebugging(true);
@@ -73,8 +81,6 @@ const App: React.FC = () => {
       value: variable.value,
     }));
     setVariables(parsedVariables);
-
-    console.log({ lineNumber, parsedStackFrames, parsedVariables });
   };
 
   const handleDebugFinished = () => {
@@ -106,6 +112,7 @@ const App: React.FC = () => {
   useSocket({
     onStdout: handleStdout,
     onStderr: handleStderr,
+    onInputRequest: handleInputRequest,
     onDebugStopped: handleDebugStopped,
     onDebugFinished: handleDebugFinished,
     onConnect: handleConnect,
@@ -120,6 +127,7 @@ const App: React.FC = () => {
       setTerminalError("");
       setDebugControlsVisible(false);
       setCurrentLine(null);
+      setInputNeeded(false);
 
       socket.emit("codeSubmission", { code });
     }
@@ -171,6 +179,13 @@ const App: React.FC = () => {
         location: line,
       });
     }
+  };
+
+  const handleSendInput = (input: string) => {
+    input = input + "\n";
+    socket.emit("input", { input });
+    setInputNeeded(false);
+    setTerminalOutput((prev) => prev + input);
   };
 
   return (
@@ -231,7 +246,12 @@ const App: React.FC = () => {
           )}
 
           <div className="h-1/3 p-4 overflow-auto bg-gray-800 text-white">
-            <Terminal output={terminalOutput} error={terminalError} />
+            <Terminal
+              output={terminalOutput}
+              error={terminalError}
+              inputNeeded={inputNeeded}
+              onSendInput={handleSendInput}
+            />
           </div>
 
           {isDebugging && stackFrames.length > 0 && (

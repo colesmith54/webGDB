@@ -40,13 +40,11 @@ export class GDBController extends EventEmitter {
     this.stdout.on("data", this.handleStdout.bind(this));
     this.stderr.on("data", this.handleStderr.bind(this));
 
-    // Add error listener to stdin
     this.stdin.on("error", (err) => {
       console.error("stdin stream encountered an error:", err);
       this.emit("error", err);
     });
 
-    // Optional: Handle finish and close events
     this.stdin.on("finish", () => {
       console.log("stdin stream has finished writing.");
     });
@@ -221,6 +219,24 @@ export class GDBController extends EventEmitter {
     this.breakpoints.delete(line);
   }
 
+  public sendProgramInput(input: string): void {
+    if (this.isEnded) {
+      this.emit(
+        "error",
+        new Error("Cannot send input, debug session has ended.")
+      );
+      return;
+    }
+
+    this.stdin.write(input + "\n", (err) => {
+      if (err) {
+        this.emit("error", new Error("Failed to send input to the program."));
+      } else {
+        this.emit("inputSent", input);
+      }
+    });
+  }
+
   public async run() {
     const response = await this.sendCommand("-exec-run");
     if (response.type !== "^" || !response.payload.startsWith("running")) {
@@ -285,6 +301,8 @@ export class GDBController extends EventEmitter {
     if (response.type !== "^" || !response.payload.startsWith("done")) {
       throw new Error("Failed to retrieve variables");
     }
+
+    console.log(response.message);
 
     const varsMatch = response.message.match(/variables=\[(.*)\]/);
     if (!varsMatch) {

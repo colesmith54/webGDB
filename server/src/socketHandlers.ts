@@ -1,10 +1,11 @@
 // src/socketHandlers.ts
-
 import { Socket } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { createDockerContainer, removeDockerContainer } from "./dockerManager";
 import { compileAndRunCodeInContainer } from "./compiler";
 import { compileCodeInContainer, startDebugSession } from "./debugger";
+import { GDBController } from "./gdbController";
+
 import { ExecutionResult } from "./types";
 import {
   ensureCodeDirExists,
@@ -14,13 +15,10 @@ import {
 import { Container } from "dockerode";
 
 export function handleSocketConnection(socket: Socket): void {
-  console.log("Client connected:", socket.id);
-
   (async () => {
     try {
       const sessionId = uuidv4();
       const container = await createDockerContainer(sessionId);
-
       (socket as any).container = container;
       console.log(`Docker container created for client ${socket.id}`);
     } catch (error) {
@@ -33,12 +31,9 @@ export function handleSocketConnection(socket: Socket): void {
   })();
 
   socket.on("codeSubmission", async (data) => {
-    console.log("Received code submission from", socket.id);
-
     const { code } = data;
     const sessionId = uuidv4();
     const filename = `code_${sessionId}.cpp`;
-
     ensureCodeDirExists();
     const filepath = saveCodeToFile(code, filename);
 
@@ -51,14 +46,13 @@ export function handleSocketConnection(socket: Socket): void {
         throw new Error("No Docker container associated with this client.");
       }
 
-      const executionResult: ExecutionResult =
-        await compileAndRunCodeInContainer(clientContainer, filename);
-
-      if (executionResult.success) {
-        socket.emit("stdout", { output: executionResult.output });
-      } else {
-        socket.emit("stderr", { error: executionResult.error });
-      }
+      const execStream = await compileAndRunCodeInContainer(
+        clientContainer,
+        filename,
+        socket
+      );
+      (socket as any).execStream = execStream;
+      console.log(`Code executed for client ${socket.id}`);
     } catch (error: any) {
       console.error("Error during code execution:", error);
       socket.emit("programError", { error: error.message });
@@ -67,6 +61,34 @@ export function handleSocketConnection(socket: Socket): void {
     }
   });
 
+  socket.on("input", (data) => {
+    const { input } = data;
+
+    const gdbController: GDBController | undefined = (socket as any)
+      .gdbController;
+
+    if (gdbController) {
+      console.log("yes");
+      try {
+        gdbController.sendProgramInput(input);
+        console.log(`Debug input received from client ${socket.id}: ${input}`);
+      } catch (error) {
+        console.error("Error sending input to debugger:", error);
+        socket.emit("programError", {
+          error: "Failed to send input to debugger.",
+        });
+      }
+    } else {
+      console.log("no");
+      const execStream: any = (socket as any).execStream;
+      if (execStream && execStream.stdin) {
+        execStream.stdin.write(input + "\n");
+        console.log(`Input received from client ${socket.id}: ${input}`);
+      } else {
+        socket.emit("programError", { error: "No execution stream found." });
+      }
+    }
+  });
   socket.on("debugStart", async (data) => {
     console.log("Received debug start from", socket.id);
 
@@ -153,14 +175,6 @@ export function handleSocketConnection(socket: Socket): void {
     console.log("Client disconnected:", socket.id);
     const clientContainer: Container = (socket as any).container;
     if (clientContainer) {
-      const gdbController: any = (socket as any).gdbController;
-      if (gdbController) {
-        try {
-          await gdbController.quit();
-        } catch (err) {
-          console.error("Error quitting GDB:", err);
-        }
-      }
       await removeDockerContainer(clientContainer);
       console.log(`Docker container removed for client ${socket.id}`);
     }

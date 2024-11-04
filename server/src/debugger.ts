@@ -30,8 +30,6 @@ export async function compileCodeInContainer(
     });
 
     let { stdout, stderr } = await streamToString(exec);
-    stdout = stdout.replace(/[^\x20-\x7E\n\r]/g, "");
-    stderr = stderr.replace(/[^\x20-\x7E\n\r]/g, "");
 
     if (stderr) {
       return { success: false, error: stderr };
@@ -139,6 +137,8 @@ export async function startDebugSession(
     gdbController.on("exit", () => {
       socket.emit("debugFinished");
       gdbController.quit();
+      delete (socket as any).gdbController;
+      console.log(`Debug session ended for client ${socket.id}`);
     });
 
     try {
