@@ -211,14 +211,14 @@ const App: React.FC = () => {
             <button
               className="btn btn-primary flex-grow"
               onClick={handleCompile}
-              disabled={isDebugging || !isConnected}
+              disabled={isDebugging || !isConnected || canInput}
             >
               Compile & Run
             </button>
             <button
               className="btn btn-secondary flex-grow"
               onClick={handleDebug}
-              disabled={isDebugging || !isConnected}
+              disabled={isDebugging || !isConnected || canInput}
             >
               Debug
             </button>

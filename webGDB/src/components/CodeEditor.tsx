@@ -25,7 +25,23 @@ const CodeEditor = forwardRef((props: CodeEditorProps, ref) => {
     isReadOnly,
   } = props;
   const [code, setCode] = useState<string>(
-    `#include <iostream>\n#include <vector>\nusing namespace std;\n\nint main() {\n    int n = 4;\n    vector<int> x(4, 0);\n    cout << "before breakpoint" << endl;\n    cout << endl;\n    cout << "after breakpoint" << endl;\n    return 0;\n}`
+    `#include <bits/stdc++.h>
+    
+using namespace std;
+using ll = long long;
+using ii = pair<int, int>;
+using vi = vector<int>;
+
+
+int main() {
+    int n = 4;
+    vi x(4, 0);
+
+    cout << "before breakpoint" << endl;
+    cout << endl;
+    cout << "after breakpoint" << endl;
+    return 0;
+}`
   );
   const [breakpoints, setBreakpoints] = useState<number[]>([]);
   const [decorationIds, setDecorationIds] = useState<string[]>([]);
