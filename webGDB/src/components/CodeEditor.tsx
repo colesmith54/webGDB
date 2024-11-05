@@ -35,8 +35,10 @@ using vi = vector<int>;
 
 
 int main() {
-    int n = 4;
-    vi x(4, 0);
+    int example_integer = -478;
+    char example_char = 'e';
+    string example_string = "testing";
+    vi example_vector(4, 0);
 
     cout << "before breakpoint" << endl;
     cout << endl;
