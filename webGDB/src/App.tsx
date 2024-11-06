@@ -12,8 +12,9 @@ const App: React.FC = () => {
   const codeEditorRef = useRef<any>(null);
   const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>([]);
 
-  const [canInput, setCanInput] = useState<boolean>(false);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isDebugging, setIsDebugging] = useState<boolean>(false);
+  const [canInput, setCanInput] = useState<boolean>(false);
 
   const [variables, setVariables] = useState<Variable[]>([]);
   const [stackFrames, setStackFrames] = useState<StackFrame[]>([]);
@@ -22,11 +23,15 @@ const App: React.FC = () => {
   const [debugControlsVisible, setDebugControlsVisible] =
     useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
-
   const isDebuggingRef = useRef(isDebugging);
+
   useEffect(() => {
     isDebuggingRef.current = isDebugging;
   }, [isDebugging]);
+
+  useEffect(() => {
+    setCanInput(false);
+  }, [isRunning]);
 
   const handleStdout = (data: { output: string }) => {
     setTerminalEntries((prev) => [
@@ -45,7 +50,15 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
-    setCanInput(false);
+    setIsRunning(false);
+  };
+
+  const handleCompiled = () => {
+    setCanInput(true);
+  };
+
+  const handleRunFinished = () => {
+    setIsRunning(false);
   };
 
   const handleExit = () => {
@@ -55,6 +68,7 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
+    setIsRunning(false);
   };
 
   const handleDebugStopped = (data: {
@@ -64,7 +78,7 @@ const App: React.FC = () => {
   }) => {
     setDebugControlsVisible(true);
     setIsDebugging(true);
-    setCanInput(false);
+    setIsRunning(false);
 
     const lineNumber = parseInt(data.line, 10);
     setCurrentLine(lineNumber);
@@ -90,7 +104,7 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
-    setCanInput(false);
+    setIsRunning(false);
   };
 
   const handleConnect = () => {
@@ -107,15 +121,13 @@ const App: React.FC = () => {
     setVariables([]);
     setStackFrames([]);
     setCurrentLine(null);
-  };
-
-  const handleRunFinished = () => {
-    setCanInput(false);
+    setIsRunning(false);
   };
 
   useSocket({
     onStdout: handleStdout,
     onStderr: handleStderr,
+    onCompiled: handleCompiled,
     onRunFinished: handleRunFinished,
     onDebugStopped: handleDebugStopped,
     onDebugFinished: handleDebugFinished,
@@ -130,7 +142,7 @@ const App: React.FC = () => {
       setTerminalEntries([]);
       setDebugControlsVisible(false);
       setCurrentLine(null);
-      setCanInput(true);
+      setIsRunning(true);
 
       socket.emit("codeSubmission", { code });
     }
@@ -144,29 +156,29 @@ const App: React.FC = () => {
       setTerminalEntries([]);
       setIsDebugging(true);
       setCurrentLine(null);
-      setCanInput(true);
+      setIsRunning(true);
 
       socket.emit("debugStart", { code, breakpoints });
     }
   };
 
   const handleResume = () => {
-    setCanInput(true);
+    setIsRunning(true);
     socket.emit("debugCommand", { type: "continue" });
   };
 
   const handleNext = () => {
-    setCanInput(true);
+    setIsRunning(true);
     socket.emit("debugCommand", { type: "step_over" });
   };
 
   const handleStepIn = () => {
-    setCanInput(true);
+    setIsRunning(true);
     socket.emit("debugCommand", { type: "step_into" });
   };
 
   const handleStepOver = () => {
-    setCanInput(true);
+    setIsRunning(true);
     socket.emit("debugCommand", { type: "step_over" });
   };
 
@@ -189,8 +201,7 @@ const App: React.FC = () => {
   };
 
   const handleSendInput = (input: string) => {
-    input = input + "\n";
-    socket.emit("input", { input });
+    socket.emit("input", { input: input + "\n" });
     setTerminalEntries((prev) => [...prev, { type: "input", text: input }]);
   };
 
@@ -212,14 +223,14 @@ const App: React.FC = () => {
             <button
               className="btn btn-primary flex-grow"
               onClick={handleCompile}
-              disabled={isDebugging || !isConnected || canInput}
+              disabled={isDebugging || !isConnected || isRunning}
             >
               Compile & Run
             </button>
             <button
               className="btn btn-secondary flex-grow"
               onClick={handleDebug}
-              disabled={isDebugging || !isConnected || canInput}
+              disabled={isDebugging || !isConnected || isRunning}
             >
               Debug
             </button>
@@ -228,16 +239,32 @@ const App: React.FC = () => {
           {debugControlsVisible && (
             <div className="p-4 flex space-x-2">
               <div className="flex space-x-4 flex-grow">
-                <button className="btn btn-primary" onClick={handleResume}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleResume}
+                  disabled={isRunning}
+                >
                   Resume
                 </button>
-                <button className="btn btn-primary" onClick={handleNext}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleNext}
+                  disabled={isRunning}
+                >
                   Next
                 </button>
-                <button className="btn btn-primary" onClick={handleStepIn}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleStepIn}
+                  disabled={isRunning}
+                >
                   Step In
                 </button>
-                <button className="btn btn-primary" onClick={handleStepOver}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleStepOver}
+                  disabled={isRunning}
+                >
                   Step Over
                 </button>
               </div>
@@ -245,6 +272,7 @@ const App: React.FC = () => {
               <button
                 className="btn btn-secondary ml-auto"
                 onClick={handleExit}
+                disabled={isRunning}
               >
                 Exit
               </button>

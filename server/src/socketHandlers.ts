@@ -54,7 +54,8 @@ export function handleSocketConnection(socket: Socket): void {
       );
 
       (socket as any).execStream = execStream;
-      console.log(`Code executed for client ${socket.id}`);
+      console.log("Code compiled for ", socket.id);
+      socket.emit("compiled");
     } catch (error: any) {
       console.error("Error during code execution:", error);
       socket.emit("programError", { error: error.message });
@@ -115,6 +116,7 @@ export function handleSocketConnection(socket: Socket): void {
       }
 
       await startDebugSession(clientContainer, filename, breakpoints, socket);
+      socket.emit("compiled");
     } catch (error: any) {
       socket.emit("stderr", { error: error.message });
     } finally {
@@ -166,6 +168,8 @@ export function handleSocketConnection(socket: Socket): void {
     } else {
       socket.emit("programError", { error: "GDB session not initialized." });
     }
+
+    socket.emit("compiled");
   });
 
   socket.on("disconnect", async () => {

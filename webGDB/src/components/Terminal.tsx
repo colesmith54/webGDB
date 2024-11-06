@@ -42,10 +42,7 @@ const Terminal: React.FC<TerminalProps> = ({
     const pastedText = e.clipboardData.getData("Text");
     if (pastedText.includes("\n")) {
       e.preventDefault();
-      const lines = pastedText.split(/\r?\n/);
-      lines.forEach((line) => {
-        onSendInput(line);
-      });
+      onSendInput(pastedText);
       setInput("");
     }
   };
