@@ -15,7 +15,11 @@ const Variables: React.FC<VariablesProps> = ({ variables }) => {
       <ul>
         {variables.map((variable, index) => (
           <li key={index} className="border-b border-gray-700 py-2">
-            <span className="font-mono">{variable.name}:</span>{" "}
+            <div>
+              <span className="font-mono">
+                {variable.name}: ({variable.type})
+              </span>
+            </div>
             <ParsedValueRenderer value={variable.value} />
           </li>
         ))}

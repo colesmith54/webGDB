@@ -90,88 +90,108 @@ function inferTypeFromValue(value: string): string {
   }
 
   if (/^".*"$/.test(value)) {
-    return "std::string";
+    return "string";
   }
 
   if (value.startsWith("std::vector")) {
     const elementType = inferElementType(value);
-    return `std::vector<${elementType}>`;
+    return `vector<${elementType}>`;
   }
 
   if (value.startsWith("std::__cxx11::list") || value.startsWith("std::list")) {
     const elementType = inferElementType(value);
-    return `std::list<${elementType}>`;
+    return `list<${elementType}>`;
   }
 
   if (value.startsWith("std::deque")) {
     const elementType = inferElementType(value);
-    return `std::deque<${elementType}>`;
+    return `deque<${elementType}>`;
   }
 
-  if (value.startsWith("std::array")) {
+  if (value.startsWith("std::array") || value.includes("_M_elems")) {
     const elementType = inferElementType(value);
-    return `std::array<${elementType}>`;
+    return `array<${elementType}>`;
   }
 
   if (value.startsWith("std::forward_list")) {
     const elementType = inferElementType(value);
-    return `std::forward_list<${elementType}>`;
+    return `forward_list<${elementType}>`;
   }
 
-  if (value.startsWith("std::set") || value.startsWith("std::unordered_set")) {
+  if (value.startsWith("std::set")) {
     const elementType = inferElementType(value);
-    return `std::set<${elementType}>`;
+    return `set<${elementType}>`;
   }
 
-  if (
-    value.startsWith("std::multiset") ||
-    value.startsWith("std::unordered_multiset")
-  ) {
+  if (value.startsWith("std::unordered_set")) {
     const elementType = inferElementType(value);
-    return `std::multiset<${elementType}>`;
+    return `unordered_set<${elementType}>`;
   }
 
-  if (value.startsWith("std::map") || value.startsWith("std::unordered_map")) {
+  if (value.startsWith("std::multiset")) {
+    const elementType = inferElementType(value);
+    return `multiset<${elementType}>`;
+  }
+
+  if (value.startsWith("std::unordered_multiset")) {
+    const elementType = inferElementType(value);
+    return `unordered_multiset<${elementType}>`;
+  }
+
+  if (value.startsWith("std::map")) {
     const keyType = inferMapKeyType(value);
     const valueType = inferMapValueType(value);
-    return `std::map<${keyType}, ${valueType}>`;
+    return `map<${keyType}, ${valueType}>`;
   }
 
-  if (
-    value.startsWith("std::multimap") ||
-    value.startsWith("std::unordered_multimap")
-  ) {
+  if (value.startsWith("std::unordered_map")) {
     const keyType = inferMapKeyType(value);
     const valueType = inferMapValueType(value);
-    return `std::multimap<${keyType}, ${valueType}>`;
+    return `unordered_map<${keyType}, ${valueType}>`;
+  }
+
+  if (value.startsWith("std::multimap")) {
+    const keyType = inferMapKeyType(value);
+    const valueType = inferMapValueType(value);
+    return `multimap<${keyType}, ${valueType}>`;
+  }
+
+  if (value.startsWith("std::unordered_multimap")) {
+    const keyType = inferMapKeyType(value);
+    const valueType = inferMapValueType(value);
+    return `unordered_multimap<${keyType}, ${valueType}>`;
   }
 
   if (value.startsWith("std::stack")) {
     const elementType = inferElementType(value);
-    return `std::stack<${elementType}>`;
+    return `stack<${elementType}>`;
   }
 
   if (value.startsWith("std::queue")) {
     const elementType = inferElementType(value);
-    return `std::queue<${elementType}>`;
+    return `queue<${elementType}>`;
   }
 
   if (value.startsWith("std::priority_queue")) {
     const elementType = inferElementType(value);
-    return `std::priority_queue<${elementType}>`;
+    return `priority_queue<${elementType}>`;
   }
 
   if (value.startsWith("std::tuple")) {
     const elementTypes = inferTupleElementTypes(value);
-    return `std::tuple<${elementTypes.join(", ")}>`;
+    return `tuple<${elementTypes.join(", ")}>`;
   }
 
   if (value.startsWith("{first")) {
     const keyValueTypes = inferPairTypes(value);
-    return `std::pair<${keyValueTypes[0]}, ${keyValueTypes[1]}>`;
+    return `pair<${keyValueTypes[0]}, ${keyValueTypes[1]}>`;
   }
 
   if (value.startsWith("{") && value.endsWith("}")) {
+    const elementType = inferElementType(value);
+    if (elementType !== "unknown") {
+      return `${elementType}[]`;
+    }
     return "struct";
   }
 
@@ -217,13 +237,13 @@ function inferPrimitiveType(value: any): string {
     if (value.length === 1) {
       return "char";
     } else {
-      return "std::string";
+      return "string";
     }
   }
 
   if (Array.isArray(value)) {
     const nestedType = inferElementType(JSON.stringify(value));
-    return `std::vector<${nestedType}>`;
+    return `vector<${nestedType}>`;
   }
 
   if (typeof value === "object" && value !== null) {
