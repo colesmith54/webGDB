@@ -1,13 +1,13 @@
-// src/dockerManager.ts
+// src/utils/dockerUtils.ts
 
 import Docker, { Container } from "dockerode";
-import { CODE_DIR } from "./utils/fileUtils";
-import path from "path";
+import { CODE_DIR } from "./fileUtils";
+import { v4 as uuidv4 } from "uuid";
 
 const docker = new Docker({ socketPath: "/var/run/docker.sock" });
 
 export async function createDockerContainer(
-  sessionId: string
+  sessionId: string = uuidv4()
 ): Promise<Container> {
   const container = await docker.createContainer({
     Image: "gcc-gdb-image",

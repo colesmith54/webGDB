@@ -1,6 +1,6 @@
 // src/components/CodeEditor.tsx
 
-import React, {
+import {
   useState,
   useEffect,
   useRef,
@@ -27,22 +27,105 @@ const CodeEditor = forwardRef((props: CodeEditorProps, ref) => {
   const [code, setCode] = useState<string>(
     `#include <iostream>
 #include <vector>
-
-using namespace std;
-using ll = long long;
-using ii = pair<int, int>;
-using vi = vector<int>;
-
+#include <list>
+#include <deque>
+#include <array>
+#include <forward_list>
+#include <set>
+#include <map>
+#include <unordered_set>
+#include <unordered_map>
+#include <stack>
+#include <queue>
+#include <string>
+#include <utility>
+#include <tuple>
 
 int main() {
-    int example_integer = -478;
-    char example_char = 'e';
-    string example_string = "testing";
-    vi example_vector(4, 0);
 
-    cout << "before breakpoint" << endl;
-    cout << endl;
-    cout << "after breakpoint" << endl;
+    int i = -5;
+
+    int a[4];
+    a[0] = 0;
+    a[1] = 1;
+    a[2] = 2;
+    a[3] = 3;
+
+    double d = 6.1384612;
+
+    char c = 'e';
+    
+    std::string str = "hello word";
+
+    std::vector<int> vec = {1, 2, 3, 4, 5};
+
+    std::list<std::string> lst = {"hello", "world", "from", "GDB-MI"};
+
+    std::deque<double> deq = {1.1, 2.2, 3.3, 4.4};
+
+    std::array<int, 5> arr = {10, 20, 30, 40, 50};
+
+    std::forward_list<char> fwd_lst = {'a', 'b', 'c', 'd'};
+
+    std::set<int> s = {5, 3, 1, 4, 2};
+
+    std::multiset<int> ms = {1, 2, 2, 3, 4, 4, 5};
+
+    std::map<std::string, int> m = {
+        {"one", 1},
+        {"two", 2},
+        {"three", 3}
+    };
+
+    std::multimap<std::string, int> mm = {
+        {"one", 1},
+        {"one", 11},
+        {"two", 2},
+        {"three", 3},
+        {"three", 33}
+    };
+
+    std::unordered_set<int> us = {10, 20, 30, 40, 50};
+
+    std::unordered_multiset<int> ums = {100, 200, 200, 300, 400, 400, 500};
+
+    std::unordered_map<std::string, int> um = {
+        {"alpha", 100},
+        {"beta", 200},
+        {"gamma", 300}
+    };
+
+    std::unordered_multimap<std::string, int> umm = {
+        {"alpha", 100},
+        {"alpha", 110},
+        {"beta", 200},
+        {"gamma", 300},
+        {"gamma", 330}
+    };
+
+    std::stack<int> stk;
+    stk.push(1);
+    stk.push(2);
+    stk.push(3);
+
+    std::queue<int> que;
+    que.push(10);
+    que.push(20);
+    que.push(30);
+
+    std::priority_queue<int> pq;
+    pq.push(5);
+    pq.push(1);
+    pq.push(3);
+    pq.push(4);
+    pq.push(2);
+
+    std::pair<int, std::string> p = {42, "The answer"};
+
+    std::tuple<int, double, std::string> t = {7, 3.14, "Pi"};
+
+    std::cin.get();
+
     return 0;
 }`
   );

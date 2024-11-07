@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 
-export const CODE_DIR = path.join(__dirname, "..", "code");
+export const CODE_DIR = path.resolve(__dirname, "../../code");
 
 export function ensureCodeDirExists(): void {
   if (!fs.existsSync(CODE_DIR)) {
@@ -13,7 +13,7 @@ export function ensureCodeDirExists(): void {
 
 export function saveCodeToFile(code: string, filename: string): string {
   const filepath = path.join(CODE_DIR, filename);
-  fs.writeFileSync(filepath, code);
+  fs.writeFileSync(filepath, code, { encoding: "utf-8" });
   return filepath;
 }
 

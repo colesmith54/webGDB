@@ -8,20 +8,9 @@ export interface ProgramError {
   error: string;
 }
 
-export interface Variable {
-  name: string;
-  value: any;
-}
-
-export interface StackFrame {
-  func: string;
-  line: number;
-  addr: string;
-}
-
 export interface DebugStoppedData {
   line: number;
-  stk: StackFrame[];
+  stk: Frame[];
   vars: Variable[];
 }
 
@@ -29,3 +18,24 @@ export type TerminalEntry = {
   type: "input" | "output" | "error";
   text: string;
 };
+
+export interface ExecutionResult {
+  success: boolean;
+  error?: string;
+  output?: string;
+}
+
+export interface Frame {
+  level: string;
+  addr: string;
+  func: string;
+  file: string;
+  fullname: string;
+  line: string;
+  arch: string;
+}
+export interface Variable {
+  name: string;
+  type: string;
+  value: any;
+}

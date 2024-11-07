@@ -4,8 +4,7 @@ import { Container, Exec } from "dockerode";
 import { Socket } from "socket.io";
 import { ExecutionResult } from "./types";
 import { PassThrough, Writable, Readable } from "stream";
-import { GDBController } from "./gdbController";
-import Dockerode from "dockerode";
+import { GDBController } from "./controllers/gdbController";
 
 export async function compileCodeInContainer(
   container: Container,

@@ -1,21 +1,14 @@
-// src/gdbController.ts
+// src/controllers/gdbController.ts
 
 import { EventEmitter } from "events";
 import { Writable, Readable } from "stream";
-
-interface GDBControllerOptions {
-  stdin: Writable;
-  stdout: Readable;
-  stderr: Readable;
-  file: string;
-}
-
-interface GDBResponse {
-  token: number | null;
-  type: string;
-  message: string;
-  payload: any;
-}
+import { GDBMIResponse, GDBControllerOptions, Variable, Frame } from "../types";
+import { parseStackFrames } from "../parsers/stackFrameParser";
+import {
+  parseVariables,
+  extractKeyValue,
+  parseValue,
+} from "../parsers/variableParser";
 
 export class GDBController extends EventEmitter {
   private stdin: Writable;
@@ -23,8 +16,8 @@ export class GDBController extends EventEmitter {
   private stderr: Readable;
   private file: string;
   private tokenCounter: number;
-  private pendingResponses: Map<number, (response: GDBResponse) => void>;
-  private breakpoints: Map<number, string>;
+  private pendingResponses: Map<number, (response: GDBMIResponse) => void>;
+  private breakpoints: Map<number, number>;
   private isEnded: boolean = false;
 
   constructor(options: GDBControllerOptions) {
@@ -74,6 +67,8 @@ export class GDBController extends EventEmitter {
   }
 
   private parseLine(line: string) {
+    console.log(line);
+
     if (!line) {
       this.emit("stdout", { output: "" });
       return;
@@ -99,7 +94,7 @@ export class GDBController extends EventEmitter {
       if (token !== null) {
         const responseHandler = this.pendingResponses.get(token);
         if (responseHandler) {
-          const response = {
+          const response: GDBMIResponse = {
             token,
             type: responseType,
             message: line,
@@ -149,7 +144,7 @@ export class GDBController extends EventEmitter {
     this.emit("stdout", { output: line });
   }
 
-  public sendCommand(command: string): Promise<GDBResponse> {
+  public sendCommand(command: string): Promise<GDBMIResponse> {
     if (this.isEnded) {
       return Promise.reject(
         new Error("Cannot send command, GDBController has been quit.")
@@ -177,7 +172,7 @@ export class GDBController extends EventEmitter {
       });
 
       const originalResolve = resolve;
-      this.pendingResponses.set(token, (response: GDBResponse) => {
+      this.pendingResponses.set(token, (response: GDBMIResponse) => {
         clearTimeout(timeout);
         originalResolve(response);
       });
@@ -201,7 +196,7 @@ export class GDBController extends EventEmitter {
       throw new Error("Failed to parse breakpoint ID");
     }
 
-    this.breakpoints.set(line, match[1]);
+    this.breakpoints.set(line, parseInt(match[1], 10));
   }
 
   public async removeBreakpoint(line: number) {
@@ -265,7 +260,61 @@ export class GDBController extends EventEmitter {
     }
   }
 
-  public async getStackFrames(): Promise<any[]> {
+  public async stepOut() {
+    const response = await this.sendCommand("-exec-finish");
+    if (response.type !== "^" || !response.payload.startsWith("running")) {
+      throw new Error("Failed to step out");
+    }
+  }
+
+  public async getVariables(): Promise<Variable[]> {
+    try {
+      const response = await this.sendCommand(
+        "-stack-list-variables --all-values"
+      );
+
+      if (response.type !== "^" || !response.payload.startsWith("done")) {
+        throw new Error("Failed to retrieve variables");
+      }
+
+      const varsMatch = response.message.match(/variables=\[(.*)\]/s);
+      if (!varsMatch) {
+        throw new Error("Invalid variables format");
+      }
+
+      const varsStr = varsMatch[1];
+      const varStrs = parseVariables(varsStr);
+      const variables: Variable[] = [];
+
+      for (const varStr of varStrs) {
+        const varObj = extractKeyValue(varStr);
+        if (!varObj) {
+          console.warn(`Variable without value found: ${varStr}`);
+          continue;
+        }
+
+        try {
+          varObj.value = parseValue(varObj.value);
+        } catch (parseError) {
+          console.error(
+            `Failed to parse value for variable '${varObj.name}':`,
+            parseError
+          );
+          varObj.value = varObj.value;
+        }
+
+        variables.push(varObj as Variable);
+      }
+
+      console.log(variables);
+      return variables;
+    } catch (error) {
+      console.error("Error in getVariables:", error);
+      throw error;
+    }
+  }
+
+  public async getStackFrames(): Promise<Frame[]> {
     const response = await this.sendCommand("-stack-list-frames");
     if (response.type !== "^" || !response.payload.startsWith("done")) {
       throw new Error("Failed to retrieve stack frames");
@@ -277,54 +326,7 @@ export class GDBController extends EventEmitter {
     }
 
     const framesStr = framesMatch[1];
-    const frameRegex = /{([^}]+)}/g;
-    const frames: any[] = [];
-    let match;
-    while ((match = frameRegex.exec(framesStr)) !== null) {
-      const frameStr = match[1];
-      const frameObj: any = {};
-      const keyValueRegex = /(\w+)="([^"]*)"/g;
-      let kvMatch;
-      while ((kvMatch = keyValueRegex.exec(frameStr)) !== null) {
-        frameObj[kvMatch[1]] = kvMatch[2];
-      }
-      frames.push(frameObj);
-    }
-
-    return frames;
-  }
-
-  public async getVariables(): Promise<any[]> {
-    const response = await this.sendCommand(
-      "-stack-list-variables --all-values"
-    );
-    if (response.type !== "^" || !response.payload.startsWith("done")) {
-      throw new Error("Failed to retrieve variables");
-    }
-
-    console.log(response.message);
-
-    const varsMatch = response.message.match(/variables=\[(.*)\]/);
-    if (!varsMatch) {
-      throw new Error("Invalid variables format");
-    }
-
-    const varsStr = varsMatch[1];
-    const varRegex = /{([^}]+)}/g;
-    const variables: any[] = [];
-    let match;
-    while ((match = varRegex.exec(varsStr)) !== null) {
-      const varStr = match[1];
-      const varObj: any = {};
-      const keyValueRegex = /(\w+)="([^"]*)"/g;
-      let kvMatch;
-      while ((kvMatch = keyValueRegex.exec(varStr)) !== null) {
-        varObj[kvMatch[1]] = kvMatch[2];
-      }
-      variables.push(varObj);
-    }
-
-    return variables;
+    return parseStackFrames(framesStr);
   }
 
   public async quit() {
@@ -335,24 +337,20 @@ export class GDBController extends EventEmitter {
     this.isEnded = true;
 
     try {
-      this.stdin.write(`${this.tokenCounter++}-gdb-exit\n`, (err) => {
-        if (err) {
-          console.error("Error writing exit command to stdin:", err);
-        }
-        this.stdin.end();
-      });
-
-      for (const [token, resolve] of this.pendingResponses) {
-        resolve({
-          token,
-          type: "error",
-          message: "GDBController has been quit.",
-          payload: null,
-        });
-      }
-      this.pendingResponses.clear();
+      await this.sendCommand("-gdb-exit");
+      this.stdin.end();
     } catch (error) {
       console.error("Failed to exit GDB:", error);
     }
+
+    for (const [_, resolve] of this.pendingResponses) {
+      resolve({
+        token: null,
+        type: "error",
+        message: "GDBController has been quit.",
+        payload: null,
+      });
+    }
+    this.pendingResponses.clear();
   }
 }

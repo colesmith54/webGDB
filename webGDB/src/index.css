@@ -8,10 +8,6 @@ html {
   background-color: #1e1e1e;
 }
 
-body {
-  overflow: hidden;
-}
-
 .breakpoint-line {
   background-color: rgba(255, 99, 71, 0.2) !important;
 }

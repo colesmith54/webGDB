@@ -1,20 +1,25 @@
-// src/hooks/useSocket.ts
+// src/hooks/useSocketHandlers.ts
 
 import { useEffect } from "react";
 import socket from "../socket";
+import { Frame, Variable } from "../types";
 
-interface UseSocketProps {
+interface UseSocketHandlersProps {
   onStdout?: (data: { output: string }) => void;
   onStderr?: (data: { error: string }) => void;
   onCompiled?: () => void;
   onRunFinished?: () => void;
-  onDebugStopped?: (data: { line: string; stk: any; vars: any }) => void;
+  onDebugStopped?: (data: {
+    line: string;
+    stk: Frame[];
+    vars: Variable[];
+  }) => void;
   onDebugFinished?: () => void;
   onConnectFailed?: () => void;
   onConnect?: () => void;
 }
 
-export const useSocket = ({
+export const useSocketHandlers = ({
   onStdout,
   onStderr,
   onCompiled,
@@ -23,7 +28,7 @@ export const useSocket = ({
   onDebugFinished,
   onConnectFailed,
   onConnect,
-}: UseSocketProps) => {
+}: UseSocketHandlersProps) => {
   useEffect(() => {
     if (onStdout) {
       socket.on("stdout", onStdout);
@@ -44,20 +49,12 @@ export const useSocket = ({
       socket.on("debugFinished", onDebugFinished);
     }
     if (onConnectFailed) {
-      socket.on("connect_error", () => {
-        onConnectFailed();
-      });
-      socket.on("connect_failed", () => {
-        onConnectFailed();
-      });
-      socket.on("disconnect", () => {
-        onConnectFailed();
-      });
+      socket.on("connect_error", onConnectFailed);
+      socket.on("connect_failed", onConnectFailed);
+      socket.on("disconnect", onConnectFailed);
     }
     if (onConnect) {
-      socket.on("connect", () => {
-        onConnect();
-      });
+      socket.on("connect", onConnect);
     }
 
     return () => {
@@ -67,9 +64,11 @@ export const useSocket = ({
       if (onRunFinished) socket.off("runFinished", onRunFinished);
       if (onDebugStopped) socket.off("debugStopped", onDebugStopped);
       if (onDebugFinished) socket.off("debugFinished", onDebugFinished);
-      if (onConnectFailed) socket.off("disconnect", onConnectFailed);
-      if (onConnectFailed) socket.off("connect_failed", onConnectFailed);
-      if (onConnectFailed) socket.off("connect_error", onConnectFailed);
+      if (onConnectFailed) {
+        socket.off("connect_error", onConnectFailed);
+        socket.off("connect_failed", onConnectFailed);
+        socket.off("disconnect", onConnectFailed);
+      }
       if (onConnect) socket.off("connect", onConnect);
     };
   }, [
