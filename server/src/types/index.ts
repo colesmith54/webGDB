@@ -37,3 +37,28 @@ export type Variable = {
   type: string;
   value: any;
 };
+
+export interface ParsedVariable {
+  name: string;
+  type: string;
+  value: any;
+}
+
+export interface ParsedGDBMIOutput {
+  done: boolean;
+  variables: ParsedVariable[];
+}
+
+export enum TokenType {
+  Identifier,
+  String,
+  Number,
+  Symbol,
+  Char,
+  EOF,
+}
+
+export interface Token {
+  type: TokenType;
+  value: string;
+}

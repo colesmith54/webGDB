@@ -4,11 +4,7 @@ import { EventEmitter } from "events";
 import { Writable, Readable } from "stream";
 import { GDBMIResponse, GDBControllerOptions, Variable, Frame } from "../types";
 import { parseStackFrames } from "../parsers/stackFrameParser";
-import {
-  parseVariables,
-  extractKeyValue,
-  parseValue,
-} from "../parsers/variableParser";
+import { GDBMIParser } from "../parsers/gdbmiParser";
 
 export class GDBController extends EventEmitter {
   private stdin: Writable;
@@ -267,7 +263,7 @@ export class GDBController extends EventEmitter {
     }
   }
 
-  public async getVariables(): Promise<Variable[]> {
+  public async getVariables(): Promise<any> {
     try {
       const response = await this.sendCommand(
         "-stack-list-variables --all-values"
@@ -277,37 +273,12 @@ export class GDBController extends EventEmitter {
         throw new Error("Failed to retrieve variables");
       }
 
-      const varsMatch = response.message.match(/variables=\[(.*)\]/s);
-      if (!varsMatch) {
-        throw new Error("Invalid variables format");
-      }
+      const parser = new GDBMIParser(response.message);
+      const result = parser.parse();
 
-      const varsStr = varsMatch[1];
-      const varStrs = parseVariables(varsStr);
-      const variables: Variable[] = [];
-
-      for (const varStr of varStrs) {
-        const varObj = extractKeyValue(varStr);
-        if (!varObj) {
-          console.warn(`Variable without value found: ${varStr}`);
-          continue;
-        }
-
-        try {
-          varObj.value = parseValue(varObj.value);
-        } catch (parseError) {
-          console.error(
-            `Failed to parse value for variable '${varObj.name}':`,
-            parseError
-          );
-          varObj.value = varObj.value;
-        }
-
-        variables.push(varObj as Variable);
-      }
-
-      console.log(variables);
-      return variables;
+      const json = JSON.stringify(result, null, 2);
+      console.log(json);
+      return result;
     } catch (error) {
       console.error("Error in getVariables:", error);
       throw error;
