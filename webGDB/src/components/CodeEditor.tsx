@@ -25,22 +25,7 @@ const CodeEditor = forwardRef((props: CodeEditorProps, ref) => {
     isReadOnly,
   } = props;
   const [code, setCode] = useState<string>(
-    `#include <iostream>
-#include <vector>
-#include <list>
-#include <deque>
-#include <array>
-#include <forward_list>
-#include <set>
-#include <map>
-#include <unordered_set>
-#include <unordered_map>
-#include <stack>
-#include <queue>
-#include <string>
-#include <utility>
-#include <tuple>
-#include <functional>
+    `#include <bits/stdc++.h>
 
 // Custom hash function for std::pair<int, int>
 struct pair_hash {
@@ -141,11 +126,13 @@ int main() {
 }
 `
   );
+
   const [breakpoints, setBreakpoints] = useState<number[]>([]);
   const [decorationIds, setDecorationIds] = useState<string[]>([]);
   const [currentLineDecorationId, setCurrentLineDecorationId] = useState<
     string | null
   >(null);
+
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(
     null
   );
@@ -172,6 +159,14 @@ int main() {
         }
       }
     });
+
+    const model = editor.getModel();
+    if (model) {
+      model.onDidChangeContent(() => {
+        const maxLine = model.getLineCount();
+        setBreakpoints((prev) => prev.filter((ln) => ln <= maxLine));
+      });
+    }
   };
 
   const toggleBreakpoint = (lineNumber: number) => {
@@ -188,24 +183,32 @@ int main() {
 
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
+      const monacoInstance = monacoRef.current;
+      const editorInstance = editorRef.current;
+
+      editorInstance.deltaDecorations(decorationIds, []);
+
       const newDecorations = breakpoints.map((lineNumber) => ({
-        range: new monacoRef.current!.Range(lineNumber, 1, lineNumber, 1),
+        range: new monacoInstance.Range(lineNumber, 1, lineNumber, 1),
         options: {
           isWholeLine: true,
           className: "breakpoint-line",
           glyphMarginClassName: "breakpoint-glyph",
           glyphMarginHoverMessage: { value: "Breakpoint" },
+          stickiness:
+            monacoInstance.editor.TrackedRangeStickiness
+              .NeverGrowsWhenTypingAtEdges,
         },
       }));
 
-      const newDecorationIds = editorRef.current.deltaDecorations(
+      const newDecorationIds = editorInstance.deltaDecorations(
         decorationIds,
         newDecorations
       );
 
       setDecorationIds(newDecorationIds);
     }
-  }, [breakpoints]);
+  }, [breakpoints, code]);
 
   useEffect(() => {
     if (editorRef.current) {
@@ -215,24 +218,30 @@ int main() {
 
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
+      const editorInstance = editorRef.current;
+      const monacoInstance = monacoRef.current;
+
       if (currentLineDecorationId) {
-        editorRef.current.deltaDecorations([currentLineDecorationId], []);
+        editorInstance.deltaDecorations([currentLineDecorationId], []);
         setCurrentLineDecorationId(null);
       }
 
       if (currentLine !== undefined && currentLine !== null) {
         const newDecoration = {
-          range: new monacoRef.current.Range(currentLine, 1, currentLine, 1),
+          range: new monacoInstance.Range(currentLine, 1, currentLine, 1),
           options: {
             isWholeLine: true,
             className: "current-break-line",
+            stickiness:
+              monacoInstance.editor.TrackedRangeStickiness
+                .NeverGrowsWhenTypingAtEdges,
           },
         };
 
-        const [newId] = editorRef.current.deltaDecorations([], [newDecoration]);
+        const [newId] = editorInstance.deltaDecorations([], [newDecoration]);
         setCurrentLineDecorationId(newId);
 
-        editorRef.current.revealLineInCenter(currentLine);
+        editorInstance.revealLineInCenter(currentLine);
       }
     }
   }, [currentLine]);
