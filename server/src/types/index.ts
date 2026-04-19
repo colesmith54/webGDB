@@ -55,6 +55,7 @@ export enum TokenType {
   Number,
   Symbol,
   Char,
+  Pointer,
   EOF,
 }
 

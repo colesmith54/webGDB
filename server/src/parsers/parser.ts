@@ -131,6 +131,10 @@ export class Parser {
       const value = this.currentToken.value;
       this.eat(TokenType.Char);
       return { type: "char", value: value };
+    } else if (this.currentToken.type === TokenType.Pointer) {
+      const address = this.currentToken.value;
+      this.eat(TokenType.Pointer);
+      return { type: "pointer", address };
     } else {
       throw new Error(`Unexpected token in value: ${this.currentToken.value}`);
     }

@@ -5,6 +5,8 @@ import { Writable, Readable } from "stream";
 import { GDBMIResponse, GDBControllerOptions, Variable, Frame } from "../types";
 import { parseStackFrames } from "../parsers/stackFrameParser";
 import { GDBMIParser } from "../parsers/gdbmiParser";
+import { Tokenizer } from "../parsers/tokenizer";
+import { Parser } from "../parsers/parser";
 
 export class GDBController extends EventEmitter {
   private stdin: Writable;
@@ -263,7 +265,7 @@ export class GDBController extends EventEmitter {
     }
   }
 
-  public async getVariables(): Promise<any> {
+  public async getVariables(): Promise<Variable[]> {
     try {
       const response = await this.sendCommand(
         "-stack-list-variables --all-values"
@@ -276,13 +278,129 @@ export class GDBController extends EventEmitter {
       const parser = new GDBMIParser(response.message);
       const result = parser.parse();
 
-      const json = JSON.stringify(result, null, 2);
-      console.log(json);
-      return result;
+      console.log(JSON.stringify(result, null, 2));
+      return result.variables;
     } catch (error) {
       console.error("Error in getVariables:", error);
       throw error;
     }
+  }
+
+  public async evaluateExpression(expr: string): Promise<string> {
+    const response = await this.sendCommand(
+      `-data-evaluate-expression "${expr}"`
+    );
+    if (response.type !== "^" || !response.payload.startsWith("done")) {
+      throw new Error(`Failed to evaluate expression: ${expr}`);
+    }
+    const match = response.message.match(/value="((?:[^"\\]|\\.)*)"/);
+    if (!match) {
+      throw new Error(`No value in response for expression: ${expr}`);
+    }
+    return match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+
+  private parseGDBValue(raw: string): any {
+    const tokenizer = new Tokenizer(raw);
+    const parser = new Parser(tokenizer);
+    return parser.parse();
+  }
+
+  private async expandPointerValue(
+    pointerValue: any,
+    ptrExpr: string,
+    visited: Set<string>,
+    depth: number,
+    maxDepth: number
+  ): Promise<any> {
+    if (depth >= maxDepth) return pointerValue;
+
+    const addr = pointerValue.address;
+    if (addr === "0x0") return pointerValue;
+    if (visited.has(addr)) return { ...pointerValue, circular: true };
+
+    visited.add(addr);
+
+    try {
+      const rawValue = await this.evaluateExpression(`*${ptrExpr}`);
+      const parsed = this.parseGDBValue(rawValue);
+      const expanded = await this.expandStructFields(
+        parsed,
+        ptrExpr,
+        "->",
+        visited,
+        depth,
+        maxDepth
+      );
+      return { ...pointerValue, dereferenced: expanded };
+    } catch (e) {
+      console.error(`Failed to expand pointer at ${ptrExpr}: ${e}`);
+      return pointerValue;
+    }
+  }
+
+  private async expandStructFields(
+    struct: any,
+    baseExpr: string,
+    sep: "." | "->",
+    visited: Set<string>,
+    depth: number,
+    maxDepth: number
+  ): Promise<any> {
+    if (depth >= maxDepth || typeof struct !== "object" || struct === null) {
+      return struct;
+    }
+
+    const result: any = {};
+    for (const [key, val] of Object.entries(struct)) {
+      const anyVal = val as any;
+      const fieldExpr = `${baseExpr}${sep}${key}`;
+      if (anyVal && typeof anyVal === "object" && anyVal.type === "pointer") {
+        result[key] = await this.expandPointerValue(
+          anyVal,
+          fieldExpr,
+          visited,
+          depth + 1,
+          maxDepth
+        );
+      } else {
+        result[key] = val;
+      }
+    }
+    return result;
+  }
+
+  public async expandVariables(variables: Variable[]): Promise<Variable[]> {
+    const visited = new Set<string>();
+    const result: Variable[] = [];
+
+    for (const variable of variables) {
+      const val = variable.value;
+      if (val && typeof val === "object" && val.type === "pointer") {
+        const expanded = await this.expandPointerValue(
+          val,
+          variable.name,
+          visited,
+          0,
+          6
+        );
+        result.push({ ...variable, value: expanded });
+      } else if (val && typeof val === "object") {
+        const expanded = await this.expandStructFields(
+          val,
+          variable.name,
+          ".",
+          visited,
+          0,
+          6
+        );
+        result.push({ ...variable, value: expanded });
+      } else {
+        result.push(variable);
+      }
+    }
+
+    return result;
   }
 
   public async getStackFrames(): Promise<Frame[]> {

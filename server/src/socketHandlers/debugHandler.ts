@@ -86,6 +86,11 @@ export async function handleDebugCommand(
             throw new Error("Breakpoint location not provided.");
           }
           break;
+        case "exit_debug":
+          await gdbController.quit();
+          socket.emit("debugFinished");
+          delete (socket as any).gdbController;
+          return;
         default:
           socket.emit("programError", { error: "Unknown command type." });
       }

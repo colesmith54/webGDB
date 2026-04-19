@@ -68,6 +68,17 @@ export class Tokenizer {
     return result;
   }
 
+  private hexAddress(): string {
+    let result = "0x";
+    this.advance(); // consume '0'
+    this.advance(); // consume 'x'
+    while (this.currentChar && /[0-9a-fA-F]/.test(this.currentChar)) {
+      result += this.currentChar;
+      this.advance();
+    }
+    return result;
+  }
+
   private identifier(): string {
     let result = "";
     while (this.currentChar && /[a-zA-Z0-9_<>\'_]/.test(this.currentChar)) {
@@ -114,6 +125,10 @@ export class Tokenizer {
         ((this.currentChar === "-" || this.currentChar === "+") &&
           /[0-9]/.test(this.peekChar()))
       ) {
+        if (this.currentChar === "0" && this.peekChar() === "x") {
+          const value = this.hexAddress();
+          return { type: TokenType.Pointer, value };
+        }
         const value = this.number();
         return { type: TokenType.Number, value };
       }

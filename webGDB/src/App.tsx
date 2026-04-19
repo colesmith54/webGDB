@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import React, { useRef, useEffect, useReducer } from "react";
+import React, { useRef, useEffect, useReducer, useState } from "react";
 import CodeEditor from "./components/CodeEditor";
 import Terminal from "./components/Terminal";
 import socket from "./socket";
@@ -9,6 +9,7 @@ import { Variable, Frame, TerminalEntry } from "./types";
 import DebugControls from "./components/DebugControls";
 import StackFrames from "./components/StackFrames";
 import Variables from "./components/Variables";
+import GraphVisualizer from "./components/GraphVisualizer";
 
 interface AppState {
   terminalEntries: TerminalEntry[];
@@ -84,6 +85,7 @@ const App: React.FC = () => {
   const isDebuggingRef = useRef(false);
 
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [visualizeVar, setVisualizeVar] = useState<Variable | null>(null);
 
   useEffect(() => {
     isDebuggingRef.current = state.isDebugging;
@@ -118,6 +120,8 @@ const App: React.FC = () => {
   };
 
   const handleExit = () => {
+    socket.emit("debugCommand", { type: "exit_debug" });
+    setVisualizeVar(null);
     dispatch({ type: "RESET" });
   };
 
@@ -126,8 +130,6 @@ const App: React.FC = () => {
     stk: Frame[];
     vars: Variable[];
   }) => {
-    console.log(data.stk);
-    console.log(data.vars);
     dispatch({ type: "SET_DEBUG_CONTROLS_VISIBLE", visible: true });
     dispatch({ type: "SET_DEBUGGING", isDebugging: true });
     dispatch({ type: "SET_RUNNING", isRunning: false });
@@ -146,6 +148,7 @@ const App: React.FC = () => {
     dispatch({ type: "SET_STACK_FRAMES", stackFrames: [] });
     dispatch({ type: "SET_CURRENT_LINE", line: null });
     dispatch({ type: "SET_RUNNING", isRunning: false });
+    setVisualizeVar(null);
   };
 
   const handleConnect = () => {
@@ -254,7 +257,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen flex-col">
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         {/* Code Editor Section */}
         <div className="w-1/2 border-r">
           <CodeEditor
@@ -266,10 +269,10 @@ const App: React.FC = () => {
           />
         </div>
 
-        {/* Right Panel: Buttons, Debug Controls, Terminal, StackFrames, Variables */}
-        <div className="w-1/2 flex flex-col">
+        {/* Right Panel */}
+        <div className="w-1/2 flex flex-col overflow-hidden">
           {/* Action Buttons */}
-          <div className="p-4 flex space-x-2">
+          <div className="p-4 flex space-x-2 flex-shrink-0">
             <button
               className="btn btn-primary flex-grow"
               onClick={handleCompile}
@@ -292,14 +295,16 @@ const App: React.FC = () => {
 
           {/* Debug Controls */}
           {state.debugControlsVisible && (
-            <DebugControls
-              onResume={handleResume}
-              onNext={handleNext}
-              onStepIn={handleStepIn}
-              onStepOver={handleStepOver}
-              onExit={handleExit}
-              isRunning={state.isRunning}
-            />
+            <div className="flex-shrink-0">
+              <DebugControls
+                onResume={handleResume}
+                onNext={handleNext}
+                onStepIn={handleStepIn}
+                onStepOver={handleStepOver}
+                onExit={handleExit}
+                isRunning={state.isRunning}
+              />
+            </div>
           )}
 
           {/* Scrollable Content */}
@@ -320,11 +325,22 @@ const App: React.FC = () => {
 
             {/* Variables */}
             {state.isDebugging && state.variables.length > 0 && (
-              <Variables variables={state.variables} />
+              <Variables
+                variables={state.variables}
+                onVisualize={setVisualizeVar}
+              />
             )}
           </div>
         </div>
       </div>
+
+      {/* Graph Visualizer Modal */}
+      {visualizeVar && (
+        <GraphVisualizer
+          variable={visualizeVar}
+          onClose={() => setVisualizeVar(null)}
+        />
+      )}
     </div>
   );
 };

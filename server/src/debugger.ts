@@ -126,10 +126,11 @@ export async function startDebugSession(
     gdbController.on("breakpoint", async (data) => {
       const stk = await gdbController.getStackFrames();
       const vars = await gdbController.getVariables();
+      const expandedVars = await gdbController.expandVariables(vars);
       socket.emit("debugStopped", {
         line: data.line,
         stk: stk,
-        vars: vars,
+        vars: expandedVars,
       });
     });
 
