@@ -51,19 +51,17 @@ struct ListNode {
 };
 
 int main() {
-    // bst
     Node* root = nullptr;
     for (int v : {5, 3, 7, 1, 4, 6, 8})
         root = insert(root, v);
 
-    // linked list
     ListNode* head = new ListNode(10);
     head->next = new ListNode(20);
     head->next->next = new ListNode(30);
 
-    vector<int> nums = {1, 2, 3, 4, 5};
-    map<string, int> scores = {{"alice", 95}, {"bob", 82}};
-
+    vector<int> nums = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
+    priority_queue<int> pq(nums.begin(), nums.end());
+    
     int answer = 42; // <-- set breakpoint here
     return 0;
 }

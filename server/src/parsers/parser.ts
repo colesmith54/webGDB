@@ -84,6 +84,8 @@ export class Parser {
           return this.parseMap();
         case "std::stack":
           return this.parseStack();
+        case "std::queue":
+          return this.parseQueue();
         case "std::priority_queue":
           return this.parsePriorityQueue();
         default:
@@ -601,6 +603,13 @@ export class Parser {
     this.eat(TokenType.Symbol, ":");
     const wrapped = this.parseValue();
     return { type: "std::stack", wrapped };
+  }
+
+  private parseQueue(): any {
+    this.eat(TokenType.Identifier, "wrapping");
+    this.eat(TokenType.Symbol, ":");
+    const wrapped = this.parseValue();
+    return { type: "std::queue", wrapped };
   }
 
   private parsePriorityQueue(): any {

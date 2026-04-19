@@ -10,6 +10,7 @@ import DebugControls from "./components/DebugControls";
 import StackFrames from "./components/StackFrames";
 import Variables from "./components/Variables";
 import GraphVisualizer from "./components/GraphVisualizer";
+import ContainerVisualizer, { hasVisualizableContainer } from "./components/ContainerVisualizer";
 
 interface AppState {
   terminalEntries: TerminalEntry[];
@@ -334,8 +335,14 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Graph Visualizer Modal */}
-      {visualizeVar && (
+      {/* Visualizer Modals */}
+      {visualizeVar && hasVisualizableContainer(visualizeVar.value) && (
+        <ContainerVisualizer
+          variable={visualizeVar}
+          onClose={() => setVisualizeVar(null)}
+        />
+      )}
+      {visualizeVar && !hasVisualizableContainer(visualizeVar.value) && (
         <GraphVisualizer
           variable={visualizeVar}
           onClose={() => setVisualizeVar(null)}

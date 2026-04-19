@@ -1,6 +1,6 @@
 # webGDB
 
-A browser-based GDB frontend that can visualize pointer-based data structures
+A browser-based GDB frontend that can visualize stl containers and pointer-based data structures
 
 ## Setup
 

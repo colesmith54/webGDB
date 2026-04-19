@@ -4,6 +4,7 @@ import React from "react";
 import ParsedValueRenderer from "./ParsedValueRenderer";
 import { Variable } from "../types";
 import { hasVisualizablePointer } from "./GraphVisualizer";
+import { hasVisualizableContainer } from "./ContainerVisualizer";
 import { ChartBarIcon } from "@heroicons/react/24/solid";
 
 interface VariablesProps {
@@ -41,7 +42,7 @@ const Variables: React.FC<VariablesProps> = ({ variables, onVisualize }) => {
       <h2 className="text-lg font-semibold mb-2 text-gray-200">Variables</h2>
       <ul className="space-y-1">
         {variables.map((variable, index) => {
-          const canVisualize = hasVisualizablePointer(variable.value);
+          const canVisualize = hasVisualizablePointer(variable.value) || hasVisualizableContainer(variable.value);
           const typeLabel = friendlyType(variable.type);
           return (
             <li key={index} className="border-b border-gray-700 py-2">

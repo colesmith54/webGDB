@@ -4,6 +4,8 @@ import React, { useMemo, useRef, useState, useCallback } from "react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import { Variable } from "../types";
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 interface GNode {
   id: string;
   fields: Array<{ name: string; display: string; edgeTo?: string }>;
@@ -26,12 +28,15 @@ interface Graph {
   rootId: string | null;
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const NODE_W = 160;
 const FIELD_H = 22;
 const HEADER_H = 24;
 const H_GAP = 60;
 const V_GAP = 80;
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function displayPrimitive(val: any): string {
   if (val === null || val === undefined) return "null";
@@ -51,6 +56,8 @@ function displayPrimitive(val: any): string {
   if (t === "std::tuple") return "tuple(…)";
   return "{…}";
 }
+
+// ── Graph Builder ─────────────────────────────────────────────────────────────
 
 const VIRTUAL_ROOT = "__stack_var__";
 
@@ -113,6 +120,7 @@ function buildGraph(rootValue: any, varName: string): Graph {
   if (rootValue?.type === "pointer") {
     rootId = processPointer(rootValue);
   } else if (rootValue && typeof rootValue === "object" && !rootValue.type) {
+    // Direct composite struct variable — create a virtual root node
     const hasExpandedPtrs = Object.values(rootValue).some(
       (v: any) =>
         v?.type === "pointer" && v.address !== "0x0" && v.dereferenced
@@ -136,6 +144,7 @@ function buildGraph(rootValue: any, varName: string): Graph {
   return { nodes, edges, rootId };
 }
 
+// ── Layout ────────────────────────────────────────────────────────────────────
 
 function layoutGraph(graph: Graph): void {
   const { nodes, edges, rootId } = graph;
@@ -147,6 +156,7 @@ function layoutGraph(graph: Graph): void {
     children.get(e.fromNode)!.push(e.toNode);
   }
 
+  // Detect nodes with multiple incoming edges (shared nodes); layout only once
   const inDegree = new Map<string, number>();
   for (const [, cs] of children) {
     for (const c of cs) {
@@ -194,6 +204,7 @@ function layoutGraph(graph: Graph): void {
   place(rootId, 0, 0);
 }
 
+// ── SVG Rendering ─────────────────────────────────────────────────────────────
 
 function computeViewBox(nodes: Map<string, GNode>): {
   minX: number;
@@ -237,6 +248,8 @@ function edgePath(
 
   return `M ${sx} ${sy} C ${cx1} ${cy1} ${cx2} ${cy2} ${tx} ${ty}`;
 }
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 interface GraphVisualizerProps {
   variable: Variable;
@@ -294,6 +307,7 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
       <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl flex flex-col"
         style={{ width: "80vw", height: "80vh", maxWidth: 1200, maxHeight: 800 }}>
 
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 flex-shrink-0">
           <div>
             <span className="text-white font-semibold font-mono">{variable.name}</span>
@@ -310,6 +324,7 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
           </div>
         </div>
 
+        {/* SVG Canvas */}
         <div
           className="flex-1 overflow-hidden cursor-grab active:cursor-grabbing"
           onMouseDown={onMouseDown}
@@ -343,8 +358,10 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
               </defs>
 
               <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+                {/* Offset so (0,0) is visible centre */}
                 <g transform={`translate(${-vb.minX + 30},${-vb.minY + 30})`}>
 
+                  {/* Edges */}
                   {edges.map((edge) => {
                     const fn = nodes.get(edge.fromNode);
                     const tn = nodes.get(edge.toNode);
@@ -361,10 +378,12 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
                     );
                   })}
 
+                  {/* Nodes */}
                   {[...nodes.values()].map((node) => {
                     const isRoot = node.id === rootId;
                     return (
                       <g key={node.id} transform={`translate(${node.x},${node.y})`}>
+                        {/* Node background */}
                         <rect
                           width={node.w}
                           height={node.h}
@@ -374,6 +393,7 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
                           strokeWidth="1.5"
                         />
 
+                        {/* Address header */}
                         <rect
                           width={node.w}
                           height={HEADER_H}
@@ -392,6 +412,7 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
                           {node.id === VIRTUAL_ROOT ? variable.name : shortAddr(node.id)}
                         </text>
 
+                        {/* Field separator */}
                         <line
                           x1={0}
                           y1={HEADER_H}
@@ -401,6 +422,7 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
                           strokeWidth="0.5"
                         />
 
+                        {/* Fields */}
                         {node.fields.map((field, i) => {
                           const fy = HEADER_H + i * FIELD_H;
                           const hasEdge = !!field.edgeTo;
@@ -453,7 +475,9 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ variable, onClose }) 
 
 export function hasVisualizablePointer(value: any): boolean {
   if (!value || typeof value !== "object") return false;
+  // Direct pointer variable
   if (value.type === "pointer" && value.dereferenced) return true;
+  // Composite struct with at least one expanded pointer field (no known type = plain struct)
   if (!value.type) {
     return Object.values(value).some(
       (v: any) => v?.type === "pointer" && v.address !== "0x0" && v.dereferenced
